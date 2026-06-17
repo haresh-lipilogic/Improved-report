@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:x="urn:schemas-microsoft-com:office:excel"
+xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+xmlns:html="http://www.w3.org/TR/REC-html40">
+<Worksheet ss:Name="Table1">
+	<Table>
+		<Column ss:Index="2" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="3" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="5" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="6" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="7" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="8" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="11" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="12" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="13" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="14" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Column ss:Index="15" ss:AutoFitWidth="0" ss:Width="110"/>
+		<Row>
+			<Cell><Data ss:Type="String">AnnonymousTrackingID</Data></Cell>
+			<Cell><Data ss:Type="String">SessionID</Data></Cell>
+			<Cell><Data ss:Type="String">UserID</Data></Cell>
+			<Cell><Data ss:Type="String">PageID</Data></Cell>
+			<Cell><Data ss:Type="String">AccessTime</Data></Cell>
+			<Cell><Data ss:Type="String">UserAgent</Data></Cell>
+			<Cell><Data ss:Type="String">UserAction</Data></Cell>
+			<Cell><Data ss:Type="String">referrerURL</Data></Cell>
+			<Cell><Data ss:Type="String">bannerid</Data></Cell>
+			<Cell><Data ss:Type="String">planid</Data></Cell>
+			<Cell><Data ss:Type="String">pageurl</Data></Cell>
+			<Cell><Data ss:Type="String">website</Data></Cell>
+			<Cell><Data ss:Type="String">xforward</Data></Cell>
+			<Cell><Data ss:Type="String">remotehost</Data></Cell>
+			<Cell><Data ss:Type="String">header</Data></Cell>
+			<Cell><Data ss:Type="String">tokenid</Data></Cell>
+			<Cell><Data ss:Type="String">circle</Data></Cell>
+			<Cell><Data ss:Type="String">advertiserid</Data></Cell>
+		</Row>
+
+		<Row>
+			<Cell><Data ss:Type="Number">24507386</Data></Cell>
+			<Cell><Data ss:Type="String">pzqdmpp0anptzmfljjrqwetb</Data></Cell>
+			<Cell><Data ss:Type="String">919231648144</Data></Cell>
+			<Cell><Data ss:Type="Number">1</Data></Cell>
+			<Cell><Data ss:Type="String">2016-05-12 13:49:56</Data></Cell>
+			<Cell><Data ss:Type="String">Mozilla/5.0 (Linux; Android 5.1; P5 mini Build/LMY47I) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.76 Mobile Safari/537.36</Data></Cell>
+			<Cell><Data ss:Type="String">Page_Load</Data></Cell>
+			<Cell><Data ss:Type="String">http://hotshots.me/default.aspx?pid=3&amp;bannerid=3&amp;uid=yeahmobi&amp;subid=19924&amp;hash=7c304a043-5db1-3749-1f3711491e400119f7862a6541f90edf74d096f33c00003</Data></Cell>
+			<Cell><Data ss:Type="Number">3</Data></Cell>
+			<Cell><Data ss:Type="Number">3</Data></Cell>
+			<Cell><Data ss:Type="String">http://xxx.com-m.info/are-you-18-zu.html?url=http:%2F%2Fglobal.ymtracking.com%2Ftrace%3Foffer_id%3D107980%26aff_id%3D19924%26aff_sub%3D20160512082306545-9e4c4d9a-7e520bc720f7d37e1431379df05dcd5c</Data></Cell>
+			<Cell><Data ss:Type="String">xxx.com-m.info</Data></Cell>
+			<Cell><Data ss:Type="String">100.99.141.236</Data></Cell>
+			<Cell><Data ss:Type="String">10.125.0.3</Data></Cell>
+			<Cell><Data ss:Type="String"></Data></Cell>
+			<Cell><Data ss:Type="Number">0</Data></Cell>
+			<Cell><Data ss:Type="Number">0</Data></Cell>
+			<Cell><Data ss:Type="Number">8</Data></Cell>
+		</Row>	</Table>
+</Worksheet>
+</Workbook>

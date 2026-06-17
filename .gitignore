@@ -1,0 +1,120 @@
+# ── Images ────────────────────────────────────────────────────────────────────
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.psd
+*.ai
+*.eps
+*.heic
+*.heif
+*.raw
+*.cr2
+*.nef
+*.dng
+
+# ── Videos ────────────────────────────────────────────────────────────────────
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.mpg
+*.mpeg
+*.3gp
+*.ogv
+*.ts
+*.vob
+
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ── IDE / editors ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+nbproject/
+.project
+.buildpath
+.settings/
+*.swp
+*.swo
+
+# ── PHP runtime ───────────────────────────────────────────────────────────────
+*.log
+logs/
+log/
+error_log
+php_errors.log
+cache/
+tmp/
+temp/
+sessions/
+uploads/
+
+# ── Package managers ──────────────────────────────────────────────────────────
+vendor/
+node_modules/
+
+# ── PHPUnit ───────────────────────────────────────────────────────────────────
+.phpunit.result.cache
+
+# ── Local pre-push PHP checks (not shared via git) ────────────────────────────
+tools/
+phpstan.neon
+
+# ── Unused vendors (confirmed dead — see docs/plan/unused-assets-cleanup.md) ──
+apps/web/public/vendors/moment/
+apps/web/public/vendors/Chart.js/
+apps/web/public/vendors/Flot/
+apps/web/public/vendors/fontawesome/
+apps/web/public/vendors/fullcalendar/
+apps/web/public/vendors/PACE/
+apps/web/public/vendors/update/
+apps/web/public/vendors/bernii/
+apps/web/public/vendors/gauge.js/
+apps/web/public/vendors/jquery-sparkline/
+apps/web/public/vendors/jquery.inputmask/
+apps/web/public/vendors/cropper/
+apps/web/public/vendors/ion.rangeSlider/
+apps/web/public/vendors/bootstrap-daterangepicker/
+apps/web/public/vendors/jQuery-Smart-Wizard/
+apps/web/public/vendors/mocha/
+apps/web/public/vendors/jquery-knob/
+apps/web/public/vendors/jquery.easy-pie-chart/
+apps/web/public/vendors/requirejs/
+apps/web/public/vendors/pnotify/
+apps/web/public/vendors/validator/
+apps/web/public/vendors/skycons/
+apps/web/public/vendors/normalize-css/
+apps/web/public/vendors/transitionize/
+apps/web/public/vendors/datatables.net-fixedheader-bs/
+apps/web/public/vendors/datatables.net-scroller-bs/
+
+# ── Unused JS files ───────────────────────────────────────────────────────────
+apps/web/public/js/flot/curvedLines.js
+apps/web/public/js/flot/date.js
+apps/web/public/js/flot/jquery.flot.orderBars.js
+apps/web/public/js/flot/jquery.flot.spline.js
+apps/web/public/js/maps/gdp-data.js
+apps/web/public/js/maps/jquery-jvectormap-us-aea-en.js
+apps/web/public/js/maps/jquery-jvectormap-world-mill-en.js

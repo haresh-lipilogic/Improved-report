@@ -1,0 +1,107 @@
+<?php
+ini_set('max_execution_time', 400000000);
+
+ini_set('mysql.connect_timeout', 400000000);
+ini_set('default_socket_timeout', 400000000);
+// Database configuration
+$host = "10.34.240.214";
+$username = "webserveruser";
+$password = "K&dN&r4a8N@du0";
+$database_name = "gamebar_ethopia_log";
+
+// Get connection object and set the charset
+$conn = mysqli_connect($host, $username, $password, $database_name);
+$conn->set_charset("utf8");
+
+
+// Get All Table Names From the Database
+$tables = array();
+$sql = "SHOW TABLES";
+$result = mysqli_query($conn, $sql);
+
+while ($row = mysqli_fetch_row($result)) {
+    $tables[] = $row[0];
+}
+
+$sqlScript = "";
+foreach ($tables as $table) {
+    
+    // Prepare SQLscript for creating table structure
+    $query = "SHOW CREATE TABLE $table";
+    $result = mysqli_query($conn, $query);
+    $row = mysqli_fetch_row($result);
+    
+    $sqlScript .= "\n\n" . $row[1] . ";\n\n";
+    
+    
+    $query = "SELECT * FROM $table";
+    $result = mysqli_query($conn, $query);
+    
+    $columnCount = mysqli_num_fields($result);
+    
+    // Prepare SQLscript for dumping data for each table
+    for ($i = 0; $i < $columnCount; $i ++) {
+        while ($row = mysqli_fetch_row($result)) {
+            $sqlScript .= "INSERT INTO $table VALUES(";
+            for ($j = 0; $j < $columnCount; $j ++) {
+                $row[$j] = $row[$j];
+                
+                if (isset($row[$j])) {
+                    $sqlScript .= '"' . $row[$j] . '"';
+                } else {
+                    $sqlScript .= '""';
+                }
+                if ($j < ($columnCount - 1)) {
+                    $sqlScript .= ',';
+                }
+            }
+            $sqlScript .= ");\n";
+        }
+    }
+    
+    $sqlScript .= "\n"; 
+}
+
+if(!empty($sqlScript))
+{
+    // Save the SQL script to a backup file
+    $backup_file_name = 'dbbackup/'.$database_name . '_backup_' . date('YmdHis') . '.sql';
+    $fileHandler = fopen($backup_file_name, 'w+');
+    $number_of_lines = fwrite($fileHandler, $sqlScript);
+    fclose($fileHandler); 
+	exec('chmod 777 ' . $backup_file_name);
+	$ftp_username='mehulftpbackup';
+	$ftp_userpass='Mehul@123';
+	
+	$ftp_server = "35.247.174.49";
+	$port='20';
+	$ftp_conn = ftp_connect($ftp_server,$port,'190') or die("Could not connect to $ftp_server");
+	$login = ftp_login($ftp_conn, $ftp_username, $ftp_userpass);
+		if($login) {
+        echo "<br>logged in successfully!";
+		}
+	 $file = $backup_file_name;
+	//$//file = 'somefile.txt';
+$fp = fopen($file, 'r');
+	$serverfile=$database_name . '_backup_' . date('YmdHis') . '.sql';
+	// upload file
+	ftp_pasv ($ftp_conn, true);
+	if (ftp_put($ftp_conn,$serverfile,$backup_file_name,FTP_ASCII))
+	  {
+	  echo "<br>Successfully uploaded $file.";
+	  }
+	else
+	  {
+	  echo "<br>Error uploading $file.";
+	  }
+
+	// close connection
+	ftp_close($ftp_conn);
+	
+	exec('rm ' . $backup_file_name);
+	
+    
+	
+	
+}
+?>
