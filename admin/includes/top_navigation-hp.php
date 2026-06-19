@@ -4,7 +4,7 @@
       <i class="fa fa-bars"></i>
     </button>
     <div class="hp-topnav-title">
-      <i class="fa fa-bolt"></i> Activation Report
+      <i class="fa <?php echo $pageIcon ?? 'fa-bolt'; ?>"></i> <?php echo $pageTitle ?? 'Report'; ?>
     </div>
   </div>
   <div class="hp-topnav-right">
