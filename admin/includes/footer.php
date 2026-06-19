@@ -62,8 +62,11 @@ $(document).ready(function () {
                     if ($.fn.DataTable.isDataTable('#myTable')) {
                         $('#myTable').DataTable().destroy();
                     }
+                    // scrollX is intentionally omitted — the container already has
+                    // overflow-x:auto, so the browser handles horizontal scroll natively.
+                    // DataTables scrollX clones <thead> into a separate DOM node which
+                    // breaks rowspan/colspan on multi-level headers.
                     $('#myTable').DataTable({
-                        scrollX: true,
                         pageLength: 50,
                         order: [],
                         dom: '<"top"Bf>rt<"bottom"ip><"clear">',
