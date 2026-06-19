@@ -50,59 +50,48 @@ if ($is_current_month) {
 }
 $date1 = max(1, $date1);
 
-// ── Query ──────────────────────────────────────────────────────────────────────
+// ── Query (optimized: 3 subquery layers collapsed to 1) ───────────────────────
 $sql = "
-    SELECT e.country, e.product, e.operator,
-           actcount,
-           actamount    * toinr AS actamount,
-           renewcount,
-           renewamount  * toinr AS renewamount,
-           totalcount,
-           totalamount  * toinr AS totalamount,
-           cbsent,
-           digiinvest   * toinr AS digiinvest,
-           revenueshare * toinr AS revenueshare,
-           g.ptotalamount       AS lastmonthrevenue
+    SELECT
+        a.country,
+        a.product,
+        a.operator,
+        a.actcount,
+        a.actamount    * f.toinr                                     AS actamount,
+        a.renewcount,
+        a.renewamount  * f.toinr                                     AS renewamount,
+        a.totalcount,
+        a.totalamount  * f.toinr                                     AS totalamount,
+        a.cbsent,
+        a.cbsent      * COALESCE(b.operator_cost, 0) * f.toinr      AS digiinvest,
+        a.totalamount * COALESCE(c.revenueshare,  0) * f.toinr      AS revenueshare,
+        g.ptotalamount                                               AS lastmonthrevenue
     FROM (
-        SELECT country, product, operator,
-               SUM(actcount)     actcount,    SUM(actamount)    actamount,
-               SUM(renewcount)   renewcount,  SUM(renewamount)  renewamount,
-               SUM(totalcount)   totalcount,  SUM(totalamount)  totalamount,
-               SUM(cbsent)       cbsent,      SUM(digiinvest)   digiinvest,
-               SUM(revenueshare) revenueshare
-        FROM (
-            SELECT country, a.product, a.operator,
-                   actcount, actamount, renewcount, renewamount,
-                   totalcount, totalamount, cbsent,
-                   b.operator_cost,
-                   cbsent * b.operator_cost        AS digiinvest,
-                   totalamount * c.revenueshare     AS revenueshare
-            FROM (
-                SELECT product, country, operator,
-                       SUM(actcount)   actcount,  SUM(actamount)   actamount,
-                       SUM(renewcount) renewcount,SUM(renewamount) renewamount,
-                       SUM(totalcount) totalcount,SUM(totalamount) totalamount,
-                       SUM(cbsent)     cbsent
-                FROM `{$report}`.mainreport
-                WHERE advertiser = '0'
-                  AND Date >= '{$start_date1}'
-                  AND Date <= '{$end_date}'
-                  AND operator NOT IN ({$excl_sql})
-                GROUP BY operator, product, country
-            ) a
-            LEFT JOIN (SELECT operator, operator_cost FROM `{$report}`.operatorcost)       b ON a.operator = b.operator
-            LEFT JOIN (SELECT operator, revenueshare  FROM `{$report}`.svmobi_revenueshare) c ON a.operator = c.operator
-            GROUP BY product, operator, country, operator_cost, c.revenueshare
-        ) dd
-        GROUP BY country, product, operator
-    ) e
-    INNER JOIN (SELECT * FROM `{$report}`.currency) f ON e.country = f.country
+        SELECT product, country, operator,
+               SUM(actcount)    AS actcount,
+               SUM(actamount)   AS actamount,
+               SUM(renewcount)  AS renewcount,
+               SUM(renewamount) AS renewamount,
+               SUM(totalcount)  AS totalcount,
+               SUM(totalamount) AS totalamount,
+               SUM(cbsent)      AS cbsent
+        FROM `{$report}`.mainreport
+        WHERE advertiser = '0'
+          AND Date >= '{$start_date1}'
+          AND Date <= '{$end_date}'
+          AND operator NOT IN ({$excl_sql})
+        GROUP BY product, country, operator
+    ) a
+    LEFT JOIN  `{$report}`.operatorcost        b ON b.operator = a.operator
+    LEFT JOIN  `{$report}`.svmobi_revenueshare c ON c.operator = a.operator
+    INNER JOIN `{$report}`.currency            f ON f.country  = a.country
     LEFT JOIN (
-        SELECT country, product, operator, ptotalamount
+        SELECT product, operator, SUM(ptotalamount) AS ptotalamount
         FROM `{$report}`.subdashboard
         WHERE date >= '{$laststartdate}' AND date <= '{$lastenddate}'
-    ) g ON g.product = e.product AND g.operator = e.operator
-    WHERE (totalcount > 0 OR cbsent > 0)
+        GROUP BY product, operator
+    ) g ON g.product = a.product AND g.operator = a.operator
+    WHERE (a.totalcount > 0 OR a.cbsent > 0)
     ORDER BY {$orderby}
 ";
 
