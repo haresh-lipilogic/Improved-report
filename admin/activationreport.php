@@ -7,8 +7,7 @@ $pageIcon  = 'fa-bolt';
 include("includes/check_session.php");
 date_default_timezone_set("Asia/Kolkata");
 
-// $con1 = mysqli_connect('10.34.240.214','webserveruser','K&dN&r4a8N@du0') or die(mysql_error());//cluster 2
-$con1=mysqli_connect("localhost","root","") or die(mysqli_error());//cluster1
+$con1 = mysqli_connect('10.34.240.214','webserveruser','K&dN&r4a8N@du0') or die(mysql_error());//cluster 2
 
 $start_date = '';
 $end_date   = '';
@@ -117,13 +116,13 @@ if ($is_ajax) {
 
 // ─── Full-page path: render the complete page shell ──────────────────────────
 if (!$is_ajax) {
-    include("includes/header-hp.php");
-    include("includes/sidebar-hp.php");
+    include("includes/header.php");
+    include("includes/sidebar.php");
 }
 ?>
 <?php if (!$is_ajax): ?>
 <div class="hp-main">
-<?php include("includes/top_navigation-hp.php"); ?>
+<?php include("includes/top_navigation.php"); ?>
 <div class="hp-content">
 
   <!-- Filter card -->
@@ -366,5 +365,5 @@ if ($is_ajax) {
 </div><!-- /.hp-content -->
 </div><!-- /.hp-main -->
 
-<?php include("includes/footer-hp.php"); ?>
+<?php include("includes/footer.php"); ?>
 <?php ob_end_flush(); ?>
