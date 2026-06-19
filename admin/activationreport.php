@@ -1,5 +1,6 @@
 <?php
 ob_start();
+
 $pageTitle = 'Activation Report';
 $pageIcon  = 'fa-bolt';
 
@@ -116,13 +117,13 @@ if ($is_ajax) {
 
 // ─── Full-page path: render the complete page shell ──────────────────────────
 if (!$is_ajax) {
-    include("includes/header.php");
-    include("includes/sidebar.php");
+    include("includes/header-hp.php");
+    include("includes/sidebar-hp.php");
 }
 ?>
 <?php if (!$is_ajax): ?>
 <div class="hp-main">
-<?php include("includes/top_navigation.php"); ?>
+<?php include("includes/top_navigation-hp.php"); ?>
 <div class="hp-content">
 
   <!-- Filter card -->
@@ -365,5 +366,5 @@ if ($is_ajax) {
 </div><!-- /.hp-content -->
 </div><!-- /.hp-main -->
 
-<?php include("includes/footer.php"); ?>
+<?php include("includes/footer-hp.php"); ?>
 <?php ob_end_flush(); ?>
