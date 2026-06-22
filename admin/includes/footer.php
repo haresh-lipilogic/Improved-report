@@ -74,8 +74,43 @@ $(document).ready(function () {
                             { extend: 'copy',  className: 'btn btn-default' },
                             { extend: 'csv',   className: 'btn btn-default' },
                             { extend: 'excel', className: 'btn btn-default' },
-                            { extend: 'pdf',   className: 'btn btn-default' },
-                            { extend: 'print', className: 'btn btn-default' }
+                            {
+                                extend   : 'pdfHtml5',
+                                className: 'btn btn-default',
+                                title    : 'Activation Report | SVMobi',
+                                customize: function (doc) {
+                                    // A2 landscape — width > height forces landscape on all pdfmake versions
+                                    doc.pageSize = { width: 1683.78, height: 1190.55 };
+                                    doc.pageMargins     = [10, 30, 10, 15];
+                                    doc.defaultStyle.fontSize         = 6;
+                                    doc.styles.tableHeader.fontSize   = 6;
+                                    doc.styles.tableBodyOdd.fontSize  = 6;
+                                    doc.styles.tableBodyEven.fontSize = 6;
+                                    doc.content.forEach(function (node) {
+                                        if (node.table) {
+                                            var cols = node.table.body[0].length;
+                                            node.table.widths = [];
+                                            for (var i = 0; i < cols; i++) {
+                                                node.table.widths.push('*');
+                                            }
+                                        }
+                                    });
+                                }
+                            },
+                            {
+                                extend   : 'print',
+                                className: 'btn btn-default',
+                                customize: function (win) {
+                                    $(win.document.head).append(
+                                        '<style>' +
+                                        '@page { size: A2 landscape; margin: 5mm; }' +
+                                        'body { margin: 0; font-size: 7pt; }' +
+                                        'table { border-collapse: collapse; width: 100% !important; table-layout: fixed; }' +
+                                        'table th, table td { font-size: 6pt; padding: 1px 2px; word-break: break-word; overflow-wrap: break-word; }' +
+                                        '</style>'
+                                    );
+                                }
+                            }
                         ]
                     });
                 }

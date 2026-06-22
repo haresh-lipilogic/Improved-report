@@ -169,8 +169,47 @@ $(document).ready(function () {
                             { extend: 'copy',     className: 'btn-sm' },
                             { extend: 'csv',      className: 'btn-sm' },
                             { extend: 'excel',    className: 'btn-sm' },
-                            { extend: 'pdfHtml5', className: 'btn-sm' },
-                            { extend: 'print',    className: 'btn-sm' }
+                            {
+                                extend   : 'pdfHtml5',
+                                className: 'btn-sm',
+                                title    : 'Main Report | SVMobi',
+                                customize: function (doc) {
+                                    // A3 landscape — width > height forces landscape on all pdfmake versions
+                                    doc.pageSize = { width: 1190.55, height: 841.89 };
+                                    doc.pageMargins     = [10, 30, 10, 15];
+
+                                    // Small font for all content
+                                    doc.defaultStyle.fontSize        = 7;
+                                    doc.styles.tableHeader.fontSize  = 7;
+                                    doc.styles.tableBodyOdd.fontSize = 7;
+                                    doc.styles.tableBodyEven.fontSize= 7;
+
+                                    // Force all columns equal-width (*) so nothing is cut off
+                                    doc.content.forEach(function (node) {
+                                        if (node.table) {
+                                            var cols = node.table.body[0].length;
+                                            node.table.widths = [];
+                                            for (var i = 0; i < cols; i++) {
+                                                node.table.widths.push('*');
+                                            }
+                                        }
+                                    });
+                                }
+                            },
+                            {
+                                extend   : 'print',
+                                className: 'btn-sm',
+                                customize: function (win) {
+                                    $(win.document.head).append(
+                                        '<style>' +
+                                        '@page { size: A3 landscape; margin: 5mm; }' +
+                                        'body { margin: 0; font-size: 7pt; }' +
+                                        'table { border-collapse: collapse; width: 100% !important; table-layout: fixed; }' +
+                                        'table th, table td { font-size: 6pt; padding: 1px 2px; word-break: break-word; overflow-wrap: break-word; }' +
+                                        '</style>'
+                                    );
+                                }
+                            }
                         ],
                         responsive: true,
                         ordering:   false,

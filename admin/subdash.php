@@ -115,17 +115,129 @@ $(document).ready(function () {
 
                 if ($('#subdash-table').length) {
                     $('#subdash-table').DataTable({
-                        dom: 'Bfrtip',
-                        buttons: [
-                            { extend: 'copy',     className: 'btn-sm' },
-                            { extend: 'csv',      className: 'btn-sm' },
-                            { extend: 'excel',    className: 'btn-sm' },
-                            { extend: 'pdfHtml5', className: 'btn-sm' },
+                        dom      : 'Bfrtip',
+                        buttons  : [
+                            { extend: 'copy',  className: 'btn-sm' },
+                            { extend: 'csv',   className: 'btn-sm' },
+                            {
+                                extend   : 'excelHtml5',
+                                text     : 'Excel',
+                                className: 'btn-sm',
+                                title    : '',
+                                customize: function (xlsx) {
+                                    var ws = xlsx.Sheets[xlsx.SheetNames[0]];
+
+                                    // ── helpers ──────────────────────────────
+                                    function colLetter(n) {
+                                        n++; var s = '';
+                                        while (n > 0) { var rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
+                                        return s;
+                                    }
+                                    function colNum(s) {
+                                        var n=0; for(var i=0;i<s.length;i++) n=n*26+(s.charCodeAt(i)-64); return n-1;
+                                    }
+                                    function sc(addr, val) { ws[addr] = {v: val, t: 's'}; }
+
+                                    // ── parse current sheet range ─────────────
+                                    var refParts = ws['!ref'].split(':');
+                                    var startRow = parseInt(refParts[0].replace(/[A-Z]/g,''));
+                                    var endStr   = refParts[1];
+                                    var endRow   = parseInt(endStr.replace(/[A-Z]/g,''));
+                                    var endCol   = colNum(endStr.replace(/[0-9]/g,''));
+
+                                    // ── find the actual flat-header row ───────
+                                    // (title:'' may still emit a blank/title row before headers)
+                                    var hdrRow = startRow;
+                                    for (var rr = startRow; rr <= Math.min(startRow+3, endRow); rr++) {
+                                        if (ws['A'+rr] && String(ws['A'+rr].v) === 'Country') {
+                                            hdrRow = rr; break;
+                                        }
+                                    }
+
+                                    // ── snapshot header cells + data rows ─────
+                                    var hdrCells = [];
+                                    for (var c = 0; c <= endCol; c++) {
+                                        hdrCells.push(ws[colLetter(c)+hdrRow] || null);
+                                    }
+                                    var dataCells = [];
+                                    for (var r = hdrRow+1; r <= endRow; r++) {
+                                        var row = [];
+                                        for (var c = 0; c <= endCol; c++) {
+                                            row.push(ws[colLetter(c)+r] || null);
+                                        }
+                                        dataCells.push(row);
+                                    }
+
+                                    // ── wipe sheet ────────────────────────────
+                                    for (var r = startRow; r <= endRow; r++) {
+                                        for (var c = 0; c <= endCol; c++) {
+                                            delete ws[colLetter(c)+r];
+                                        }
+                                    }
+
+                                    // ── row 1: group headers ──────────────────
+                                    sc('D1','Activation'); sc('F1','Renewal'); sc('H1','Total');
+                                    sc('J1','Callback Sent'); sc('K1','Digital Investment');
+                                    sc('L1','SVMobi Revenue'); sc('M1','Profit / Loss');
+                                    sc('N1','Projected');
+
+                                    // ── row 2: sub-headers ────────────────────
+                                    sc('D2','Count'); sc('E2','Amount');
+                                    sc('F2','Count'); sc('G2','Amount');
+                                    sc('H2','Count'); sc('I2','Amount');
+                                    sc('N2','Total Amount');    sc('O2','Digital Investment');
+                                    sc('P2','SVMobi Revenue');  sc('Q2','Profit / Loss');
+                                    sc('R2','% Growth Over Last Month');
+
+                                    // ── row 3: flat column headers ────────────
+                                    for (var c = 0; c <= endCol; c++) {
+                                        if (hdrCells[c]) ws[colLetter(c)+'3'] = {v: hdrCells[c].v, t: 's'};
+                                    }
+                                    // override with full names
+                                    sc('J3','Callback Sent');   sc('K3','Digital Investment');
+                                    sc('L3','SVMobi Revenue');  sc('M3','Profit / Loss');
+                                    sc('N3','Total Amount');    sc('O3','Digital Investment');
+                                    sc('P3','SVMobi Revenue');  sc('Q3','Profit / Loss');
+                                    sc('R3','% Growth Over Last Month');
+
+                                    // ── data rows (start at row 4) ────────────
+                                    var greenFill = {patternType:'solid', fgColor:{rgb:'FF92D050'}};
+                                    var redFill   = {patternType:'solid', fgColor:{rgb:'FFFF4444'}};
+
+                                    for (var ri = 0; ri < dataCells.length; ri++) {
+                                        var exRow = ri + 4;
+                                        for (var c = 0; c <= endCol; c++) {
+                                            var orig = dataCells[ri][c];
+                                            if (!orig) continue;
+                                            var addr = colLetter(c) + exRow;
+                                            ws[addr] = {v: orig.v, t: orig.t};
+                                            if (orig.z) ws[addr].z = orig.z; // keep number format
+                                            // colour Q (c=16) and R (c=17)
+                                            if (c === 16 || c === 17) {
+                                                var raw = orig.v;
+                                                var num = typeof raw === 'number' ? raw
+                                                    : parseFloat(String(raw).replace(/[,%\s]/g,''));
+                                                ws[addr].s = {fill: (!isNaN(num) && num < 0) ? redFill : greenFill};
+                                            }
+                                        }
+                                    }
+
+                                    // ── update range & merges ─────────────────
+                                    ws['!ref'] = 'A1:' + colLetter(endCol) + (dataCells.length + 3);
+                                    ws['!merges'] = [
+                                        {s:{r:0,c:3},  e:{r:0,c:4}},  // Activation D1:E1
+                                        {s:{r:0,c:5},  e:{r:0,c:6}},  // Renewal    F1:G1
+                                        {s:{r:0,c:7},  e:{r:0,c:8}},  // Total      H1:I1
+                                        {s:{r:0,c:13}, e:{r:0,c:17}}  // Projected  N1:R1
+                                    ];
+                                }   // end customize
+                            },
+                            { extend: 'pdfHtml5', className: 'btn-sm', orientation: 'landscape', pageSize: 'A3' },
                             { extend: 'print',    className: 'btn-sm' }
                         ],
-                        ordering:  false,
-                        paging:    false,
-                        responsive: true
+                        ordering : false,
+                        paging   : false,
+                        autoWidth: false
                     });
                 }
             },

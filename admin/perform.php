@@ -174,12 +174,46 @@ $(document).ready(function () {
                             { extend: 'copy',     className: 'btn-sm' },
                             { extend: 'csv',      className: 'btn-sm' },
                             { extend: 'excel',    className: 'btn-sm' },
-                            { extend: 'pdfHtml5', className: 'btn-sm' },
-                            { extend: 'print',    className: 'btn-sm' }
+                            {
+                                extend   : 'pdfHtml5',
+                                className: 'btn-sm',
+                                title    : 'Perform Report | SVMobi',
+                                customize: function (doc) {
+                                    // A4 portrait — height > width
+                                    doc.pageSize = { width: 595.28, height: 841.89 };
+                                    doc.pageMargins     = [10, 30, 10, 15];
+                                    doc.defaultStyle.fontSize         = 8;
+                                    doc.styles.tableHeader.fontSize   = 8;
+                                    doc.styles.tableBodyOdd.fontSize  = 8;
+                                    doc.styles.tableBodyEven.fontSize = 8;
+                                    doc.content.forEach(function (node) {
+                                        if (node.table) {
+                                            var cols = node.table.body[0].length;
+                                            node.table.widths = [];
+                                            for (var i = 0; i < cols; i++) {
+                                                node.table.widths.push('*');
+                                            }
+                                        }
+                                    });
+                                }
+                            },
+                            {
+                                extend   : 'print',
+                                className: 'btn-sm',
+                                customize: function (win) {
+                                    $(win.document.head).append(
+                                        '<style>' +
+                                        '@page { size: A4 portrait; margin: 5mm; }' +
+                                        'body { margin: 0; font-size: 7pt; }' +
+                                        'table { border-collapse: collapse; width: 100% !important; table-layout: fixed; }' +
+                                        'table th, table td { font-size: 6pt; padding: 1px 2px; word-break: break-word; }' +
+                                        '</style>'
+                                    );
+                                }
+                            }
                         ],
                         ordering : false,
-                        paging   : false,
-                        responsive: true
+                        paging   : false
                     });
                 }
             },
