@@ -1,759 +1,180 @@
 <?php
-
-ini_set('max_execution_time', 6000000);
-error_reporting(0);
-include("includes/check_session.php");
-if($_SESSION['admin']==0)
-{
-	//echo "<script>alert('you are not allow to use this report');</script>";
-	//			echo "<script>window.location='report.php'</script>";
-	//header('location:report.php');
-}
-//include("includes/connection.php");
+ini_set('max_execution_time', 6000);
 date_default_timezone_set("Asia/Calcutta");
+error_reporting(0);
 
-$con=new mysqli("10.34.240.214","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster 2
-$con3=new mysqli("10.34.240.214","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster 2
+$pageTitle = 'Dashboard';
+$pageIcon  = 'fa-home';
 
-
-
-
-
-//$con1=new mysqli("10.125.0.50","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster1
-
-$con1=$con;
-$start_date='';
-$end_date='';
-$country='';
-$product='';
-$count=0;
-$cc=0;
-$sql_ad="select distinct(country) country from gamebardb_vodafone_qatar_report.mainreport ";
-$res_op=mysqli_query($con,$sql_ad);
-$year=date('Y'); 
-$month=date('m');
-
-$year1=$year;
-$month1=$month;
-
-if(isset($_POST['submit']))
-{
-
-$count=1;
-$country=$_POST['country'];
-$year=$_POST['year'];
-$month=$_POST['month'];
-$currency=$_POST['currency'];
-
-if($currency=='INR')
-{
-	$devide=1;
-
-}
-else{
-	$devide=90;
-}
-
-
-$start_date=$year."-".$month."-01 00:00:00";
-$enddate=date("Y-m-t", strtotime($start_date));
-$end_date=$enddate." 23:59:59";
-$eday=date("t", strtotime($enddate));
-
-$laststartdate=date("Y-m-d",strtotime($start_date." -1 months"));
-$lastenddate=date("Y-m-d",strtotime($start_date." -1 days"));
-
-
-$start_date1=date("Y-m-d",strtotime($start_date));
-
-
-
-//exit;
-if($month==$month1 && $year1==$year)
-{
-	$date1=date('d',strtotime('-1 days'));
-	$e=0;
-}
-else{
-	
-	$date1=date("t", strtotime($enddate));
-	$e=1;
-	
-}
-
-//echo $date1;exit;
-//print_r($_POST);
-//exit;
-if($e==0)
-{
-	   $sql="SELECT 
-    e.country,
-    actcount,
-    actamount * toinr actamount,
-    renewcount,
-    renewamount * toinr renewamount,
-    totalcount,
-    totalamount * toinr totalamount,
-	cbsent,
-    digiinvest * toinr digiinvest,
-    revenueshare * toinr revenueshare,
-    g.ptotalamount lastmonthrevenue,
-	fixcost
-FROM
-    (SELECT 
-        country,
-            SUM(`actcount`) actcount,
-            SUM(`actamount`) actamount,
-            SUM(`renewcount`) renewcount,
-            SUM(`renewamount`) renewamount,
-            SUM(`totalcount`) totalcount,
-            SUM(`totalamount`) totalamount,
-            SUM(`cbsent`) cbsent,
-            SUM(digiinvest) digiinvest,
-            SUM(revenueshare) revenueshare
-    FROM
-        (SELECT 
-        country,
-            a.product,
-            a.operator,
-            actcount,
-            actamount,
-            renewcount,
-            renewamount,
-            totalcount,
-            totalamount,
-            cbsent,
-            b.operator_cost,
-            cbsent * b.operator_cost digiinvest,
-            c.revenueshare revenueshare1,
-            totalamount * revenueshare revenueshare
-    FROM
-        (SELECT 
-        product,
-            country,
-            SUM(`actcount`) actcount,
-            SUM(`actamount`) actamount,
-            SUM(`renewcount`) renewcount,
-            SUM(`renewamount`) renewamount,
-            SUM(`totalcount`) totalcount,
-            SUM(`totalamount`) totalamount,
-            SUM(`cbsent`) cbsent,
-            operator
-    FROM
-        gamebardb_vodafone_qatar_report.`mainreport`
-    WHERE
-        `advertiser` = '0'
-            AND `Date` >= '".$start_date1."'
-            AND Date <= '".$end_date."'
-           AND operator != 'ZA_Vodacom_BT'
-            AND operator != 'ZA_Vodacom_FG'
-            AND operator != 'ZA_Vodacom'
-            AND operator != 'ZA_Vodacom_WFH'
-            AND operator != 'Thailand_9305_dtac'
-            AND operator != 'Thailand_9305_Ais'
-            AND operator != 'Thailand_new_9005_Ais'
-            AND operator != 'Thailand_new_9005_Dtac'
-            AND operator != 'Thailand_new_9005_Truemove'
-			AND operator != 'KSA_Weekly_Mobily'
-            AND operator != 'KSA_Weekly_STC'
-            AND operator != 'KSA_Weekly_zain'
-            AND operator != 'KSA_Daily_Mobily'
-            AND operator != 'KSA_Daily_STC'
-            AND operator != 'KSA_Daily_zain'
-            AND operator != 'KSA_GamePub_Weekly_Mobily'
-            AND operator != 'KSA_GamePub_Weekly_STC'
-			AND operator != 'KSA_Mobily_Weekly_Gamestation'
-            AND operator != 'KSA_Zain_Weekly_Gamestation'
-            AND operator != 'KSA_Stc_Weekly_Gamestation'
-			
-    GROUP BY operator,product,country) a
-    LEFT JOIN (SELECT 
-        operator, operator_cost
-    FROM
-        gamebardb_vodafone_qatar_report.operatorcost) b ON a.operator = b.operator
-    LEFT JOIN (SELECT 
-        operator, revenueshare
-    FROM
-        gamebardb_vodafone_qatar_report.svmobi_revenueshare) c ON a.operator = c.operator
-        
-       group by product,operator,country,operator_cost,revenueshare) dd
-    GROUP BY country) e
-        INNER JOIN
-    (SELECT 
-        *
-    FROM
-        gamebardb_vodafone_qatar_report.currency) f ON e.country = f.country
-        LEFT JOIN
-    (SELECT 
-        country, ptotalamount
-    FROM
-        gamebardb_vodafone_qatar_report.dashboard
-    WHERE
-        date >= '".$laststartdate."'
-            AND date <= '".$lastenddate."') g ON g.country = e.country
-WHERE
-    totalcount > 0 order by country";
-	
-	//echo $sql;exit;
-			$res=mysqli_query($con,$sql);
-			
-			
-			 $sql3="select SUM(ptotalamount)plasttotalamount from gamebardb_vodafone_qatar_report.dashboard where date>='".$laststartdate."' and date <='".$lastenddate."'";
-			//echo $sql3;exit;
-			$res3=mysqli_query($con,$sql3);
-			
-}
-else{
-	
-	   $sql="SELECT 
-    e.country,
-    actcount,
-    actamount * toinr actamount,
-    renewcount,
-    renewamount * toinr renewamount,
-    totalcount,
-    totalamount * toinr totalamount,
-	cbsent,
-    digiinvest * toinr digiinvest,
-    revenueshare * toinr revenueshare,
-    g.ptotalamount lastmonthrevenue,
-	fixcost
-FROM
-    (SELECT 
-        country,
-            SUM(`actcount`) actcount,
-            SUM(`actamount`) actamount,
-            SUM(`renewcount`) renewcount,
-            SUM(`renewamount`) renewamount,
-            SUM(`totalcount`) totalcount,
-            SUM(`totalamount`) totalamount,
-            SUM(`cbsent`) cbsent,
-            SUM(digiinvest) digiinvest,
-            SUM(revenueshare) revenueshare
-    FROM
-        (SELECT 
-        country,
-            a.product,
-            a.operator,
-            actcount,
-            actamount,
-            renewcount,
-            renewamount,
-            totalcount,
-            totalamount,
-            cbsent,
-            b.operator_cost,
-            cbsent * b.operator_cost digiinvest,
-            c.revenueshare revenueshare1,
-            totalamount * revenueshare revenueshare
-    FROM
-        (SELECT 
-        product,
-            country,
-            SUM(`actcount`) actcount,
-            SUM(`actamount`) actamount,
-            SUM(`renewcount`) renewcount,
-            SUM(`renewamount`) renewamount,
-            SUM(`totalcount`) totalcount,
-            SUM(`totalamount`) totalamount,
-            SUM(`cbsent`) cbsent,
-            operator
-    FROM
-        gamebardb_vodafone_qatar_report.`mainreport`
-    WHERE
-        `advertiser` = '0'
-            AND `Date` >= '".$start_date1."'
-            AND Date <= '".$end_date."'
-             AND operator != 'ZA_Vodacom_BT'
-            AND operator != 'ZA_Vodacom_FG'
-            AND operator != 'ZA_Vodacom'
-            AND operator != 'ZA_Vodacom_WFH'
-            AND operator != 'Thailand_9305_dtac'
-            AND operator != 'Thailand_9305_Ais'
-            AND operator != 'Thailand_new_9005_Ais'
-            AND operator != 'Thailand_new_9005_Dtac'
-            AND operator != 'Thailand_new_9005_Truemove'
-			AND operator != 'KSA_Weekly_Mobily'
-            AND operator != 'KSA_Weekly_STC'
-            AND operator != 'KSA_Weekly_zain'
-            AND operator != 'KSA_Daily_Mobily'
-            AND operator != 'KSA_Daily_STC'
-            AND operator != 'KSA_Daily_zain'
-			AND operator != 'KSA_GamePub_Weekly_Mobily'
-            AND operator != 'KSA_GamePub_Weekly_STC'
-			AND operator != 'KSA_Mobily_Weekly_Gamestation'
-            AND operator != 'KSA_Zain_Weekly_Gamestation'
-            AND operator != 'KSA_Stc_Weekly_Gamestation'
-           
-    GROUP BY operator,product,country) a
-    LEFT JOIN (SELECT 
-        operator, operator_cost
-    FROM
-        gamebardb_vodafone_qatar_report.operatorcost) b ON a.operator = b.operator
-    LEFT JOIN (SELECT 
-        operator, revenueshare
-    FROM
-        gamebardb_vodafone_qatar_report.svmobi_revenueshare) c ON a.operator = c.operator
-        
-       group by product,operator,country,operator_cost,revenueshare) dd
-    GROUP BY country) e
-        INNER JOIN
-    (SELECT 
-        *
-    FROM
-        gamebardb_vodafone_qatar_report.currency) f ON e.country = f.country
-        LEFT JOIN
-    (SELECT 
-        country, ptotalamount
-    FROM
-        gamebardb_vodafone_qatar_report.dashboard
-    WHERE
-        date >= '".$laststartdate."'
-            AND date <= '".$lastenddate."') g ON g.country = e.country
-WHERE
-    totalcount > 0 order by country";
-	
-//echo $sql;exit;
-			$res=mysqli_query($con,$sql);
-			
-			
-			 $sql3="select SUM(ptotalamount)plasttotalamount from gamebardb_vodafone_qatar_report.dashboard where date>='".$laststartdate."' and date <='".$lastenddate."'";
-			//echo $sql3;exit;
-			$res3=mysqli_query($con,$sql3);
-	
-}			
-
-$start_date2=$start_date;
-$end_date2=$end_date;
-
-}
-
+include("includes/check_session.php");
 ?>
+<?php include("includes/header.php"); ?>
+<?php include("includes/sidebar.php"); ?>
+<div class="hp-main">
+<?php include("includes/top_navigation.php"); ?>
+<div class="hp-content">
 
-		<?php include("includes/header.php"); ?>
-		<?php include("includes/sidebar.php"); ?>
-		<?php include("includes/top_navigation.php"); ?>
-            
-			<style>
-
-.table>thead>tr>td{
-	
-	vertical-align:middle;
-	Border:1px solid #000;	}
-	
- .table>tbody>tr>td{
-	
-	vertical-align:middle;
-	Border:1px solid #000;	}
-	
-	
-	.table>tfooter>tr>td{
-	
-	vertical-align:middle;
-	Border:1px solid #ffffff;	}
-
-</style>
-
-        <!-- page content -->
-        <div class="right_col" role="main" >
-          <div class="footer_down">
-
-            
-            
-
+<!-- ─── Filter Card ─────────────────────────────────────────────────────────── -->
+<div class="hp-card hp-filter-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-search"></i> Search Report</h4>
+    </div>
+    <div class="hp-card-body">
+        <form id="dashForm">
             <div class="row">
-              <div class="col-md-12 col-xs-12">
-                <div class="x_panel">
-                 
-                  <div class="x_content">
-                    <br />
-                    <form class="form-horizontal form-label-left input_mask" method="post">
-					
-						
-						
-							
-							
-						
-						<!--<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Start Date
-						<input class="date-picker form-control col-md-7 col-xs-12 birthday" name="start_date" value="<?php// if($start_date!=''){ echo date('d-m-Y',strtotime($start_date2)); } else { echo date('d-m-Y');} ?>"  type="text">
-						</div>
 
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> End Date
-						<input class="date-picker form-control col-md-7 col-xs-12 birthday" name="end_date" value="<?php //if($end_date!=''){echo date('d-m-Y',strtotime($end_date2));}else{ echo date('d-m-Y');} ?>" type="text">
-						</div>
-						-->
-						
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Month
-						<select name="month" class="form-control" id="month" >
-							<option value="01" <?php if($month=="01"){$selected='selected';}else{$selected='';} echo $selected; ?>>January</option>
-							<option value="02" <?php if($month=="02"){$selected='selected';}else{$selected='';} echo $selected; ?> >February</option>
-							<option value="03" <?php if($month=="03"){$selected='selected';}else{$selected='';} echo $selected; ?> >March</option>
-							<option value="04" <?php if($month=="04"){$selected='selected';}else{$selected='';} echo $selected; ?> >April</option>
-							<option value="05" <?php if($month=="05"){$selected='selected';}else{$selected='';} echo $selected; ?> >May</option>
-							<option value="06" <?php if($month=="06"){$selected='selected';}else{$selected='';} echo $selected; ?> >June</option>
-							<option value="07" <?php if($month=="07"){$selected='selected';}else{$selected='';} echo $selected; ?> >July</option>
-							<option value="08" <?php if($month=="08"){$selected='selected';}else{$selected='';} echo $selected; ?> >August</option>
-							<option value="09" <?php if($month=="09"){$selected='selected';}else{$selected='';} echo $selected; ?> >September</option>
-							<option value="10" <?php if($month=="10"){$selected='selected';}else{$selected='';} echo $selected; ?> >October</option>
-							<option value="11" <?php if($month=="11"){$selected='selected';}else{$selected='';} echo $selected; ?> >November</option>
-							<option value="12" <?php if($month=="12"){$selected='selected';}else{$selected='';} echo $selected; ?> >December</option>
-							
-						</select>
-						</div>
-						
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Year
-						<select name="year" class="form-control" id="year" >
-							<option value="2018" <?php if($year=='2018'){$selected='selected';}else{$selected='';} echo $selected; ?>>2018</option>
-							<option value="2019" <?php if($year=='2019'){$selected='selected';}else{$selected='';} echo $selected; ?>>2019</option>
-							<option value="2020" <?php if($year=='2020'){$selected='selected';}else{$selected='';} echo $selected; ?>>2020</option>
-							<option value="2021" <?php if($year=='2021'){$selected='selected';}else{$selected='';} echo $selected; ?> >2021</option>
-							<option value="2022" <?php if($year=='2022'){$selected='selected';}else{$selected='';} echo $selected; ?> >2022</option>
-							<option value="2023" <?php if($year=='2023'){$selected='selected';}else{$selected='';} echo $selected; ?> >2023</option>
-							<option value="2024" <?php if($year=='2024'){$selected='selected';}else{$selected='';} echo $selected; ?> >2024</option>
-							<option value="2025" <?php if($year=='2025'){$selected='selected';}else{$selected='';} echo $selected; ?> >2025</option>
-							<option value="2026" <?php if($year=='2026'){$selected='selected';}else{$selected='';} echo $selected; ?> >2026</option>
-							
-						</select>
-						
-						</div>
-
-						
-						
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Currency
-						<select name="currency" class="form-control" id="currency" >
-							<option value="INR" <?php if($currency=='INR'){$selected='selected';}else{$selected='';} echo $selected; ?>>INR</option>
-							<option value="USD" <?php if($currency=='USD'){$selected='selected';}else{$selected='';} echo $selected; ?>>USD</option>
-							
-							
-						</select>
-						
-						</div>
-	
-						
-						<div class="ccol-md-2 col-sm-2 col-xs-12 form-group has-feedback">
-						 <br>
-						  <button type="submit" name="submit" class="btn btn-success">Submit</button>
-						</div>
-                      
-
-                    </form>
-                  </div>
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
+                        <label class="hp-filter-label">Month</label>
+                        <select name="month" id="month" class="form-control">
+                            <?php
+                            $months = ['01'=>'January','02'=>'February','03'=>'March','04'=>'April',
+                                       '05'=>'May','06'=>'June','07'=>'July','08'=>'August',
+                                       '09'=>'September','10'=>'October','11'=>'November','12'=>'December'];
+                            $curMonth = date('m');
+                            foreach ($months as $val => $label):
+                            ?>
+                            <option value="<?php echo $val; ?>" <?php echo ($curMonth === $val) ? 'selected' : ''; ?>>
+                                <?php echo $label; ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
-				
-              
-              </div>
+
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
+                        <label class="hp-filter-label">Year</label>
+                        <select name="year" id="year" class="form-control">
+                            <?php for ($y = 2018; $y <= (int)date('Y'); $y++): ?>
+                            <option value="<?php echo $y; ?>" <?php echo ($y == (int)date('Y')) ? 'selected' : ''; ?>>
+                                <?php echo $y; ?>
+                            </option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
+                        <label class="hp-filter-label">Currency</label>
+                        <select name="currency" id="currency" class="form-control">
+                            <option value="INR">INR</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
+                        <label class="hp-filter-label">&nbsp;</label>
+                        <button type="submit" id="btnSubmit" class="btn-submit-report">
+                            <i class="fa fa-search"></i> Submit
+                        </button>
+                    </div>
+                </div>
+
             </div>
-			
-			<div class="row">
+        </form>
+    </div>
+</div>
 
-				<div class="col-md-12 col-sm-12 col-xs-12">
-					<div class="x_panel">
-						
-						
-			<?php 
-			//echo $country;
-			
-				
-			
-				//echo $cc;exit;
-			?>	
-			
-					  <div class="x_content"  style="overflow:auto;">
-					  <input type="button" onclick="tableToExcel('dataTables-example', 'W3C Example Table')" value="Export to Excel"><br><br>
-						
-												<table id="dataTables-example" class="table table-striped " >
-							<thead style="background:#807d7d;color:#fff">
-							<td rowspan='2'><b>Country</b></td>
-							<td colspan='2'><b>Activation</b></td>
-							<td colspan='2'><b>Renewal</b></td>
-							<td colspan='2'><b>Total</b></td>
-							
-							<td rowspan='2'><b>Callback<br>Sent</b></td>
-							<td rowspan='2'><b>Digital<br>Investment</b></td>
-							<td rowspan='2'><b>SVMobi<br>Revenue</b></td>
-							<td rowspan='2'><b>Profit/<br>Loss</b></td>
-							
-							<td colspan='6'><b>Projected </b></td>
-							
-							
-							
-								<tr>
-									<!--<td><strong>Country</strong></td>
-									<td><strong>Activation Count</strong></td>
-									<td><strong>url</strong></td>-->
-									
-									<td><b>Count</b></td>
-									<td><b>Amount</b></td>
-									<td><b>Count</b> </td>
-									<td><b>Amount</b></td> 
-									<td><b>Count</b> </td>
-									<td><b>Amount</b></td> 
-									<td><b>Total<br>Amount</b></td> 
-									<td><b>Digital<br>Investment</b></td> 
-									<td><b>SVMobi<br>Revenue</b></td> 
-									<td><b>SVMobi<br>Fix Cost</b></td> 
-									<td><b>Profit<br>/Loss</b></td> 
-									<td><b>% Growth Over<br> Last Month</b></td> 
-									
-									
-								</tr>
-							</thead>
+<!-- ─── Results Area (populated via AJAX) ───────────────────────────────────── -->
+<div id="dash-results"></div>
 
+</div><!-- /.hp-content -->
+</div><!-- /.hp-main -->
 
-							<tbody>
-								<?php
-								$totalact=$totalactamount=$totalrenewcount=$totalrenewamount=$totaltotalcount=$totaltotalamount=$totaldigiinvest=$totalrevenue=$totalprofit=$totalptotal=$totalpdigitin=$totalprevenue=$totalpprofit=0;;
-								while($row=mysqli_fetch_array($res))
-								{
-									$i=0;
-									if($row['revenueshare']-$row['digiinvest'] < 0)
-									{
-										$i=1;
-									}
-									
-								?>
-									<tr <?php if($i==1){?> <?php }?>  style="background:white;color:Black">
-									
-									<!-- $sql="SELECT country,sum(`actcount`)actcount,sum(`actamount`)actamount,sum(`renewcount`)renewcount,sum(`renewamount`)renewamount,sum(`totalcount`)totalcount,sum(`totalamount`)totalamount,sum(`cbsent`) cbsent FROM gamebardb_vodafone_qatar_report.`mainreport` WHERE `advname`='all' and `Date`>='".$start_date."' and Date <='".$end_date."' group by country";-->
-									<?php
-									
-									
-									$country=$row['country'];
-									$actcount=$row['actcount'];
-									$totalact=$totalact+$actcount;
-									$actamount=$row['actamount']/$devide;
-									$totalactamount=$totalactamount+$actamount;
-									$renewcount=$row['renewcount'];
-									$totalrenewcount=$totalrenewcount+$renewcount;
-									$renewamount=$row['renewamount']/$devide;
-									$totalrenewamount=$totalrenewamount+$renewamount;
-									$totalcount=$row['totalcount'];
-									$totaltotalcount=$totaltotalcount+$totalcount;
-									$totalamt=$row['totalamount']/$devide;
-									$totaltotalamount=$totaltotalamount+$totalamt;
-									
-									$cbcount=$row['cbsent'];
-									$totalcbcount=$totalcbcount+$cbcount;
-									
-									$fixcost=$row['fixcost']/$devide;
-									$totalfixcost=($totalfixcost+$fixcost)/$devide;
-									
-									
-									$digitin=$row['digiinvest']/$devide;
-									$totaldigiinvest=$totaldigiinvest+$digitin;
-									$revenue=$row['revenueshare']/$devide;
-									$totalrevenue=$totalrevenue+$revenue;
-									$profit=($row['revenueshare']-$row['digiinvest'])/$devide;
-									$totalprofit=$totalprofit+$profit;
-									$ptotal=($totalamt*$eday/$date1);
-									$totalptotal=$totalptotal+$ptotal;
-									//echo "<br>totalProjected==".$totalptotal;
-									
-									$pdigitin=$digitin*$eday/$date1;
-									$totalpdigitin=$totalpdigitin+$pdigitin;
-									$prevenue=$revenue*$eday/$date1;
-									$totalprevenue=$totalprevenue+$prevenue;
-									$pprofit=($profit*$eday/$date1)-$fixcost;
-									$totalpprofit=$totalpprofit+$pprofit;
-									//exit;
-									?>
-										
-										<td style="background:#dedbdb;color:Black"><b><?php echo $country;?></b> </td>
-										<td><?php echo number_format($actcount,0,'.',',');?> </td>
-										<td><?php echo number_format($actamount,0,'.',',');?> </td>
-										<td><?php echo number_format($renewcount,0,'.',',');?> </td>
-										<td><?php echo number_format($renewamount,0,'.',',');?> </td>
-										<td><?php echo number_format($totalcount,0,'.',',');?> </td>
-										<td><?php echo number_format($totalamt,0,'.',',');?> </td>
-										<td><?php echo number_format($cbcount,0,'.',',');?> </td>
-										<td><?php echo number_format($digitin,0,'.',',');?> </td>
-										<td><?php echo number_format($revenue,0,'.',',');?> </td>
-										<td><?php echo number_format($profit,0,'.',',');?> </td>
-										<td><?php echo number_format($ptotal,0,'.',',');?> </td>
-										
-										<td><?php echo number_format($pdigitin,0,'.',',');?> </td>
-										<td><?php echo number_format($prevenue,0,'.',',');?> </td>
-										<td><?php echo number_format($fixcost,0,'.',',');?> </td>
-										
-										<?php $kk=0;
-										//$mm=$row['lastmonthrevenue']/$devide;
-										$kk=$pprofit;
-											
-										?>
-										
-										<td <?php if($kk<0){?> style="color:white;font-weight:bold;background:#ff9999;padding:5px;" <?php }else { ?> style="color:white;font-weight:bold;background:#79d279;padding:5px;" <?php } ?>><?php echo number_format($pprofit,0,'.',',');?> </td>
-										<?php $k=0;
-										$mm=$row['lastmonthrevenue']/$devide;
-										$k=number_format($dd=($ptotal-$mm)/$ptotal,2,'.','');
-											$dd=($ptotal-$mm)/$ptotal;
-										?>
-										<td <?php if($k<0){?> style="color:white;font-weight:bold;background:#ff9999;padding:5px;" <?php }else { ?> style="color:white;font-weight:bold;background:#79d279;padding:5px;" <?php } ?>><?php echo number_format($dd*100,0,'.',',')."%";?> </td>
-										
-										
-										
-									</tr>
-								<?php
-								}
-								
-								while($row3=mysqli_fetch_array($res3))
-								{
-									$plasttotalamount=$row3['plasttotalamount'];
-								}
-								
-								//$plasttotalamount=13984114.89;
-								//echo $plasttotalamount;exit;
-								$totalgrowth1=$totalptotal-$plasttotalamount;
-								$totalgrowth=$totalgrowth1/$totalptotal*100;
-								
-								//echo $totalgrowth;exit;
-								?>
-								
-								
-								<tr style="background:#807d7d;color:white; " >
-								
-								<td><b>Grand Total</b></td>
-								<td><?php echo number_format($totalact,0,'.',',');?> </td>
-										<td><b><?php echo number_format($totalactamount,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalrenewcount,0,'.',',');?> </b></td>
-										<td><b><?php echo number_format($totalrenewamount,0,'.',',');?> </b></td>
-										<td><b><?php echo number_format($totaltotalcount,0,'.',',');?> </b></td>
-										<td><b><?php echo number_format($totaltotalamount,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalcbcount,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totaldigiinvest,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalrevenue,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalprofit,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalptotal,0,'.',',');?> </b></td>
-										<td><b><?php echo number_format($totalpdigitin,0,'.',',');?> </b></td>
-										<td><b><?php echo number_format($totalprevenue,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalfixcost,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalpprofit,0,'.',',');?></b> </td>
-										<td><b><?php echo number_format($totalgrowth,0,'.',',').'%' ;?> </b></td>
-								
-								
-								</tr>
-								
-								
-								
-							</tbody>
-							
-							
-								
-								
-						</table>
-					  </div>
-				<!--<div id="advertiser"></div>-->
-			
-					</div>
-                </div>
-			</div>
-			
-		</div>
-        <!-- /page content -->
-		
-       <?php
-	   include("includes/footer.php");
-		?>
-		
-<script type="text/javascript">
- 
-</script>		
-		
-		
-		
-		
-		
-<script type="text/javascript">
- $(document).ready(function(){
-
-   $("#product").change(function(){
-		
-		var check1=$("#check1").val();
-		if(check1 == 0)
-		{
-			
-		}
-		else	
-		{
-			$(".sel1").val('');
-			$("#t1").hide();
-			$("#f1").show();
-						
-		}
-       
-		var product = $("#product").val();
-        $.ajax({
-            type: "GET",
-            url: "ajax/find_country.php?product="+product         
-			
-        }).done(function(data){
-            $(".response1").html(data);
-			 
-        });
-    });
-});
-</script>
-<script type="text/javascript">
-function myfun1() {
-var check1=$("#check1").val();
-		if(check1 == 0)
-		{
-			
-		}
-		else	
-		{
-			$(".sel").val('');
-			$("#t").hide();
-			$("#f").show();
-						
-		}
-        var country = $("#country").val();
-		var product = $("#product").val();
-        $.ajax({
-            type: "GET",
-            url: "ajax/advertiser.php?country="+country+"&product="+product         
-			
-        }).done(function(data){
-            $(".response").html(data);
-			 
-        });
-
-}	
-</script>		
-
-
-
+<?php include("includes/footer.php"); ?>
 
 <script>
- function getdata(startdate,enddate,db,dblog,advertiser,parameter){
+$(document).ready(function () {
 
-  
-  if (window.XMLHttpRequest) {
-            // code for IE7+, Firefox, Chrome, Opera, Safari
-            xmlhttp = new XMLHttpRequest();
-        } else {
-            // code for IE6, IE5
-            xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+    // ── Auto-submit on page load with current month defaults ─────────────────
+    function loadDashboard() {
+        $('#dash-results').html(
+            '<div style="padding:60px;text-align:center">' +
+            '<i class="fa fa-refresh" style="font-size:34px;color:#667eea;display:inline-block;animation:hp-spin 0.9s linear infinite"></i>' +
+            '<p style="color:#a0aec0;margin-top:14px;font-size:14px">Loading dashboard...</p></div>'
+        );
+
+        if ($.fn.DataTable && $.fn.DataTable.isDataTable('#dash-table')) {
+            $('#dash-table').DataTable().destroy();
         }
-        xmlhttp.onreadystatechange = function() {
-            if (this.readyState == 4 && this.status == 200) {
-                document.getElementById("advertiser").innerHTML = this.responseText;
+
+        $.ajax({
+            url    : 'ajax/handler.php',
+            method : 'POST',
+            data   : $('#dashForm').serialize() + '&action=dashboard_data',
+            success: function (html) {
+                $('#dash-results').html(html);
+
+                if ($('#dash-table').length) {
+                    $('#dash-table').DataTable({
+                        dom    : 'Bfrtip',
+                        buttons: [
+                            { extend: 'copy',  className: 'btn-sm' },
+                            { extend: 'csv',   className: 'btn-sm' },
+                            { extend: 'excel', className: 'btn-sm' },
+                            {
+                                extend   : 'pdfHtml5',
+                                className: 'btn-sm',
+                                title    : 'Dashboard | SVMobi',
+                                customize: function (doc) {
+                                    // A3 landscape — 17 columns
+                                    doc.pageSize = { width: 1190.55, height: 841.89 };
+                                    doc.pageMargins     = [10, 30, 10, 15];
+                                    doc.defaultStyle.fontSize         = 7;
+                                    doc.styles.tableHeader.fontSize   = 7;
+                                    doc.styles.tableBodyOdd.fontSize  = 7;
+                                    doc.styles.tableBodyEven.fontSize = 7;
+                                    doc.content.forEach(function (node) {
+                                        if (node.table) {
+                                            var cols = node.table.body[0].length;
+                                            node.table.widths = [];
+                                            for (var i = 0; i < cols; i++) node.table.widths.push('*');
+                                        }
+                                    });
+                                }
+                            },
+                            {
+                                extend   : 'print',
+                                className: 'btn-sm',
+                                customize: function (win) {
+                                    $(win.document.head).append(
+                                        '<style>' +
+                                        '@page { size: A3 landscape; margin: 5mm; }' +
+                                        'body { margin: 0; font-size: 7pt; }' +
+                                        'table { border-collapse: collapse; width: 100% !important; table-layout: fixed; }' +
+                                        'table th, table td { font-size: 6pt; padding: 1px 2px; word-break: break-word; }' +
+                                        '</style>'
+                                    );
+                                }
+                            }
+                        ],
+                        ordering : false,
+                        paging   : false
+                    });
+                }
+            },
+            error: function () {
+                $('#dash-results').html(
+                    '<div style="padding:40px;text-align:center;color:#e53e3e">' +
+                    '<i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>' +
+                    'Failed to load dashboard. Please try again.</div>'
+                );
             }
-        };
-        xmlhttp.open("GET","mehul_ajax/mehul_ajax.php?startdate="+startdate+"&enddate="+enddate+"&db="+db+"&dblog="+dblog+"&advertiser="+advertiser+"&parameter="+parameter,true);
-        xmlhttp.send();
+        });
     }
- 
- </script>   
- <script type="text/javascript">
-var tableToExcel = (function() {
-  var uri = 'data:application/vnd.ms-excel;base64,'
-    , template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>{table}</table></body></html>'
-    , base64 = function(s) { return window.btoa(unescape(encodeURIComponent(s))) }
-    , format = function(s, c) { return s.replace(/{(\w+)}/g, function(m, p) { return c[p]; }) }
-  return function(table, name) {
-    if (!table.nodeType) table = document.getElementById(table)
-    var ctx = {worksheet: name || 'Worksheet', table: table.innerHTML}
-    window.location.href = uri + base64(format(template, ctx))
-  }
-})()
+
+    // Load on page open
+    loadDashboard();
+
+    // Reload on form submit
+    $('#dashForm').on('submit', function (e) {
+        e.preventDefault();
+        loadDashboard();
+    });
+
+});
 </script>

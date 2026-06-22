@@ -35,11 +35,23 @@
     <li class="<?php echo $currentPage === 'last_activityreport.php' ? 'active' : ''; ?>">
       <a href="last_activityreport.php"><i class="fa fa-clock-o"></i> Last Activity</a>
     </li>
-    <li><a href="#"><i class="fa fa-calendar"></i> Last 30 Days</a></li>
-    <li><a href="#"><i class="fa fa-tachometer"></i> Current Month</a></li>
-    <li><a href="#"><i class="fa fa-link"></i> Advertiser Urls</a></li>
-    <li><a href="#"><i class="fa fa-trophy"></i> Contest</a></li>
-    <li><a href="#"><i class="fa fa-plug"></i> API</a></li>
-    <li><a href="#"><i class="fa fa-folder-open-o"></i> Other Reports</a></li>
+    <li class="<?php echo $currentPage === 'performance.php' ? 'active' : ''; ?>">
+      <a href="performance.php"><i class="fa fa-calendar"></i> Last 30 Days</a>
+    </li>
+    <li class="<?php echo $currentPage === 'performance1.php' ? 'active' : ''; ?>">
+      <a href="performance1.php"><i class="fa fa-tachometer"></i> Current Month</a>
+    </li>
+    <li class="<?php echo $currentPage === 'advertiser_urls.php' ? 'active' : ''; ?>">
+      <a href="advertiser_urls.php"><i class="fa fa-link"></i> Advertiser Urls</a>
+    </li>
+    <li class="<?php echo $currentPage === 'contest.php' ? 'active' : ''; ?>">
+      <a href="contest.php"><i class="fa fa-trophy"></i> Contest</a>
+    </li>
+    <li class="<?php echo $currentPage === 'api.php' ? 'active' : ''; ?>">
+      <a href="api.php"><i class="fa fa-plug"></i> API</a>
+    </li>
+    <li class="<?php echo $currentPage === 'other_reports.php' ? 'active' : ''; ?>">
+      <a href="other_reports.php"><i class="fa fa-folder-open-o"></i> Other Reports</a>
+    </li>
   </ul>
 </div>

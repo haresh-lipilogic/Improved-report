@@ -17,6 +17,8 @@ switch ($action) {
     case 'find_operators_trend':     action_find_operators_trend($con);     break;
     case 'trend_data':               action_trend_data($con);               break;
     case 'last_activity_data':       action_last_activity_data($con);       break;
+    case 'performance_data':         action_performance_data($con);         break;
+    case 'dashboard_data':           action_dashboard_data($con);           break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -1012,6 +1014,391 @@ function action_last_activity_data(mysqli $con): void
                 </tr>
                 <?php endforeach; ?>
             </tbody>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Current Month Performance data table
+// Called by: performance.php  →  POST ajax/handler.php?action=performance_data
+// No POST params — compares yesterday vs last 30-day average
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_performance_data(mysqli $con): void
+{
+    $report    = 'gamebardb_vodafone_qatar_report';
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    $lastday   = date('Y-m-d', strtotime('-30 day'));
+
+    $sql = "
+        SELECT
+            a.product, a.country, a.operator,
+            lastactavg, lastactamtavg,
+            lastrenavg, lastrenamtavg,
+            yestactcount, yestactamtcount,
+            yetrencount, yestrenamtcount
+        FROM (
+            SELECT product, country, operator,
+                   AVG(actcount)    AS lastactavg,
+                   AVG(actamount)   AS lastactamtavg,
+                   AVG(renewcount)  AS lastrenavg,
+                   AVG(renewamount) AS lastrenamtavg
+            FROM {$report}.mainreport
+            WHERE Date >= '{$lastday}' AND Date <= '{$yesterday}' AND advertiser = 0
+            GROUP BY product, country, operator
+        ) a
+        JOIN (
+            SELECT product, country, operator,
+                   actcount    AS yestactcount,
+                   actamount   AS yestactamtcount,
+                   renewcount  AS yetrencount,
+                   renewamount AS yestrenamtcount
+            FROM {$report}.mainreport
+            WHERE Date >= '{$yesterday}' AND Date <= '{$yesterday}' AND advertiser = 0
+        ) b ON a.product = b.product AND a.operator = b.operator
+        ORDER BY product, country, operator
+    ";
+
+    $res = mysqli_query($con, $sql);
+
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Query failed. Please try again.</div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) {
+        $rows[] = $row;
+    }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No performance data found for yesterday.</p>
+              </div>';
+        return;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-tachometer"></i> Performance Report
+            <small style="font-size:12px;font-weight:400;color:#a0aec0;margin-left:10px;">
+                Yesterday (<?php echo date('d-m-Y', strtotime($yesterday)); ?>) vs. Last 30-day Average
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <table id="perf-table" class="table table-striped table-bordered" style="font-size:12.5px;">
+            <thead style="background:#4a5568; color:#fff; text-align:center;">
+                <tr>
+                    <th rowspan="3">Country</th>
+                    <th rowspan="3">Product</th>
+                    <th rowspan="3">Operator</th>
+                    <th colspan="4">Activation</th>
+                    <th colspan="4">Renewal</th>
+                    <th colspan="2" rowspan="2">% Growth</th>
+                </tr>
+                <tr>
+                    <th colspan="2">AVG. Last 30 Days</th>
+                    <th colspan="2">Yesterday</th>
+                    <th colspan="2">AVG. Last 30 Days</th>
+                    <th colspan="2">Yesterday</th>
+                </tr>
+                <tr>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>% Growth Act.</th>
+                    <th>% Growth Ren.</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r):
+                    $kk1 = (float)$r['lastactamtavg'] != 0
+                        ? ((float)$r['yestactamtcount'] - (float)$r['lastactamtavg']) / (float)$r['lastactamtavg'] * 100 : 0;
+                    $kk2 = (float)$r['lastrenamtavg'] != 0
+                        ? ((float)$r['yestrenamtcount'] - (float)$r['lastrenamtavg']) / (float)$r['lastrenamtavg'] * 100 : 0;
+                ?>
+                <tr>
+                    <td style="background:#dedbdb;font-weight:600;"><?php echo htmlspecialchars($r['country']); ?></td>
+                    <td style="background:#dedbdb;font-weight:600;"><?php echo htmlspecialchars($r['product']); ?></td>
+                    <td style="background:#dedbdb;font-weight:600;"><?php echo htmlspecialchars($r['operator']); ?></td>
+                    <td><?php echo number_format((float)$r['lastactavg'],      0); ?></td>
+                    <td><?php echo number_format((float)$r['lastactamtavg'],   1); ?></td>
+                    <td><?php echo number_format((float)$r['yestactcount'],    0); ?></td>
+                    <td><?php echo number_format((float)$r['yestactamtcount'], 1); ?></td>
+                    <td><?php echo number_format((float)$r['lastrenavg'],      0); ?></td>
+                    <td><?php echo number_format((float)$r['lastrenamtavg'],   1); ?></td>
+                    <td><?php echo number_format((float)$r['yetrencount'],     0); ?></td>
+                    <td><?php echo number_format((float)$r['yestrenamtcount'], 1); ?></td>
+                    <td style="color:#fff;font-weight:bold;background:<?php echo $kk1 >= 0 ? '#68d391' : '#fc8181'; ?>;">
+                        <?php echo number_format($kk1, 1) . '%'; ?>
+                    </td>
+                    <td style="color:#fff;font-weight:bold;background:<?php echo $kk2 >= 0 ? '#68d391' : '#fc8181'; ?>;">
+                        <?php echo number_format($kk2, 1) . '%'; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Dashboard data table
+// Called by: dashboard.php  →  POST ajax/handler.php?action=dashboard_data
+// POST params: month, year, currency
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_dashboard_data(mysqli $con): void
+{
+    $report = 'gamebardb_vodafone_qatar_report';
+
+    $excluded = [
+        'ZA_Vodacom_BT','ZA_Vodacom_FG','ZA_Vodacom','ZA_Vodacom_WFH',
+        'Thailand_9305_dtac','Thailand_9305_Ais',
+        'Thailand_new_9005_Ais','Thailand_new_9005_Dtac','Thailand_new_9005_Truemove',
+        'KSA_Weekly_Mobily','KSA_Weekly_STC','KSA_Weekly_zain',
+        'KSA_Daily_Mobily','KSA_Daily_STC','KSA_Daily_zain',
+        'KSA_GamePub_Weekly_Mobily','KSA_GamePub_Weekly_STC',
+        'KSA_Mobily_Weekly_Gamestation','KSA_Zain_Weekly_Gamestation','KSA_Stc_Weekly_Gamestation',
+    ];
+    $excl_sql = "'" . implode("','", $excluded) . "'";
+
+    $sel_year     = (int)($_POST['year']    ?? date('Y'));
+    $sel_month    = str_pad($_POST['month'] ?? date('m'), 2, '0', STR_PAD_LEFT);
+    $sel_currency = $_POST['currency']      ?? 'INR';
+    $devide       = ($sel_currency === 'INR') ? 1 : 90;
+
+    $start_date1   = "{$sel_year}-{$sel_month}-01";
+    $enddate       = date('Y-m-t', strtotime($start_date1));
+    $end_date      = $enddate . ' 23:59:59';
+    $eday          = (int)date('t', strtotime($enddate));
+    $laststartdate = date('Y-m-d', strtotime($start_date1 . ' -1 month'));
+    $lastenddate   = date('Y-m-d', strtotime($start_date1 . ' -1 day'));
+
+    $is_current_month = ($sel_month == date('m') && $sel_year == (int)date('Y'));
+    $date1 = $is_current_month ? (int)date('d', strtotime('-1 day')) : $eday;
+    $date1 = max(1, $date1);
+
+    $sql = "
+        SELECT
+            e.country,
+            actcount,
+            actamount    * toinr AS actamount,
+            renewcount,
+            renewamount  * toinr AS renewamount,
+            totalcount,
+            totalamount  * toinr AS totalamount,
+            cbsent,
+            digiinvest   * toinr AS digiinvest,
+            revenueshare * toinr AS revenueshare,
+            g.ptotalamount       AS lastmonthrevenue,
+            fixcost
+        FROM (
+            SELECT country,
+                   SUM(actcount)     AS actcount,   SUM(actamount)     AS actamount,
+                   SUM(renewcount)   AS renewcount, SUM(renewamount)   AS renewamount,
+                   SUM(totalcount)   AS totalcount, SUM(totalamount)   AS totalamount,
+                   SUM(cbsent)       AS cbsent,
+                   SUM(digiinvest)   AS digiinvest,
+                   SUM(revenueshare) AS revenueshare
+            FROM (
+                SELECT country, a.product, a.operator,
+                       actcount, actamount, renewcount, renewamount,
+                       totalcount, totalamount, cbsent,
+                       cbsent * b.operator_cost       AS digiinvest,
+                       totalamount * c.revenueshare    AS revenueshare
+                FROM (
+                    SELECT product, country, operator,
+                           SUM(actcount)    AS actcount,   SUM(actamount)    AS actamount,
+                           SUM(renewcount)  AS renewcount, SUM(renewamount)  AS renewamount,
+                           SUM(totalcount)  AS totalcount, SUM(totalamount)  AS totalamount,
+                           SUM(cbsent)      AS cbsent
+                    FROM {$report}.mainreport
+                    WHERE advertiser = '0'
+                      AND Date >= '{$start_date1}' AND Date <= '{$end_date}'
+                      AND operator NOT IN ({$excl_sql})
+                    GROUP BY operator, product, country
+                ) a
+                LEFT JOIN (SELECT operator, operator_cost FROM {$report}.operatorcost)       b ON b.operator = a.operator
+                LEFT JOIN (SELECT operator, revenueshare   FROM {$report}.svmobi_revenueshare) c ON c.operator = a.operator
+                GROUP BY product, operator, country, b.operator_cost, c.revenueshare
+            ) dd
+            GROUP BY country
+        ) e
+        INNER JOIN (SELECT * FROM {$report}.currency) f ON f.country = e.country
+        LEFT JOIN (
+            SELECT country, SUM(ptotalamount) AS ptotalamount
+            FROM {$report}.dashboard
+            WHERE date >= '{$laststartdate}' AND date <= '{$lastenddate}'
+            GROUP BY country
+        ) g ON g.country = e.country
+        WHERE totalcount > 0
+        ORDER BY country
+    ";
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Query failed. Please try again.</div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) {
+        $rows[] = $row;
+    }
+
+    $plasttotalamount = 0.0;
+    $res3 = mysqli_query($con,
+        "SELECT SUM(ptotalamount) AS plasttotalamount
+         FROM {$report}.dashboard
+         WHERE date >= '{$laststartdate}' AND date <= '{$lastenddate}'"
+    );
+    if ($res3 && ($r3 = mysqli_fetch_assoc($res3))) {
+        $plasttotalamount = (float)($r3['plasttotalamount'] ?? 0);
+    }
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected period.</p>
+              </div>';
+        return;
+    }
+
+    $computed = [];
+    $totals = array_fill_keys(
+        ['act','actamount','renewcount','renewamount','totalcount','totalamount',
+         'cbsent','digiinvest','revenueshare','profit','ptotal','pdigitin','prevenue','fixcost','pprofit'],
+        0.0
+    );
+
+    foreach ($rows as $r) {
+        $totalamt  = (float)$r['totalamount']   / $devide;
+        $digitin   = (float)$r['digiinvest']    / $devide;
+        $revenue   = (float)$r['revenueshare']  / $devide;
+        $fixcost   = (float)$r['fixcost']       / $devide;
+        $profit    = ((float)$r['revenueshare'] - (float)$r['digiinvest']) / $devide;
+        $ptotal    = ($eday > 0 && $date1 > 0) ? $totalamt * $eday / $date1 : 0;
+        $pdigitin  = ($eday > 0 && $date1 > 0) ? $digitin  * $eday / $date1 : 0;
+        $prevenue  = ($eday > 0 && $date1 > 0) ? $revenue  * $eday / $date1 : 0;
+        $pprofit   = ($eday > 0 && $date1 > 0) ? $profit   * $eday / $date1 - $fixcost : 0;
+        $mm        = (float)($r['lastmonthrevenue'] ?? 0) / $devide;
+        $growth    = $ptotal > 0 ? ($ptotal - $mm) / $ptotal * 100 : 0;
+
+        $computed[] = compact(
+            'totalamt','digitin','revenue','fixcost','profit',
+            'ptotal','pdigitin','prevenue','pprofit','growth'
+        ) + [
+            'country'     => $r['country'],
+            'actcount'    => (float)$r['actcount'],
+            'actamount'   => (float)$r['actamount']   / $devide,
+            'renewcount'  => (float)$r['renewcount'],
+            'renewamount' => (float)$r['renewamount']  / $devide,
+            'totalcount'  => (float)$r['totalcount'],
+            'cbsent'      => (float)$r['cbsent'],
+        ];
+
+        $totals['act']          += (float)$r['actcount'];
+        $totals['actamount']    += (float)$r['actamount']   / $devide;
+        $totals['renewcount']   += (float)$r['renewcount'];
+        $totals['renewamount']  += (float)$r['renewamount']  / $devide;
+        $totals['totalcount']   += (float)$r['totalcount'];
+        $totals['totalamount']  += $totalamt;
+        $totals['cbsent']       += (float)$r['cbsent'];
+        $totals['digiinvest']   += $digitin;
+        $totals['revenueshare'] += $revenue;
+        $totals['profit']       += $profit;
+        $totals['ptotal']       += $ptotal;
+        $totals['pdigitin']     += $pdigitin;
+        $totals['prevenue']     += $prevenue;
+        $totals['fixcost']      += $fixcost;
+        $totals['pprofit']      += $pprofit;
+    }
+
+    $total_growth = $totals['ptotal'] > 0
+        ? ($totals['ptotal'] - $plasttotalamount) / $totals['ptotal'] * 100 : 0;
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-home"></i> Dashboard Results</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <table id="dash-table" class="table table-striped table-bordered" style="min-width:1600px; font-size:12.5px;">
+            <thead style="background:#4a5568; color:#fff; text-align:center;">
+                <tr>
+                    <th rowspan="2">Country</th>
+                    <th colspan="2">Activation</th>
+                    <th colspan="2">Renewal</th>
+                    <th colspan="2">Total</th>
+                    <th rowspan="2">CB Sent</th>
+                    <th rowspan="2">Digital Investment</th>
+                    <th rowspan="2">SVMobi Revenue</th>
+                    <th rowspan="2">Profit / Loss</th>
+                    <th colspan="6">Projected</th>
+                </tr>
+                <tr>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Total Amt</th><th>Dig. Invest</th>
+                    <th>Revenue</th><th>Fix Cost</th>
+                    <th>P / L</th><th>% Growth</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($computed as $c): ?>
+                <tr>
+                    <td style="background:#dedbdb;font-weight:600;"><?php echo htmlspecialchars($c['country']); ?></td>
+                    <td><?php echo number_format($c['actcount'],   0); ?></td>
+                    <td><?php echo number_format($c['actamount'],  0); ?></td>
+                    <td><?php echo number_format($c['renewcount'], 0); ?></td>
+                    <td><?php echo number_format($c['renewamount'],0); ?></td>
+                    <td><?php echo number_format($c['totalcount'], 0); ?></td>
+                    <td><?php echo number_format($c['totalamt'],   0); ?></td>
+                    <td><?php echo number_format($c['cbsent'],     0); ?></td>
+                    <td><?php echo number_format($c['digitin'],    0); ?></td>
+                    <td><?php echo number_format($c['revenue'],    0); ?></td>
+                    <td><?php echo number_format($c['profit'],     0); ?></td>
+                    <td><?php echo number_format($c['ptotal'],     0); ?></td>
+                    <td><?php echo number_format($c['pdigitin'],   0); ?></td>
+                    <td><?php echo number_format($c['prevenue'],   0); ?></td>
+                    <td><?php echo number_format($c['fixcost'],    0); ?></td>
+                    <td style="color:#fff;font-weight:bold;background:<?php echo $c['pprofit'] >= 0 ? '#68d391' : '#fc8181'; ?>;">
+                        <?php echo number_format($c['pprofit'], 0); ?>
+                    </td>
+                    <td style="color:#fff;font-weight:bold;background:<?php echo $c['growth'] >= 0 ? '#68d391' : '#fc8181'; ?>;">
+                        <?php echo number_format($c['growth'], 0) . '%'; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="background:#4a5568; color:#fff; font-weight:bold; text-align:center;">
+                    <td>Grand Total</td>
+                    <td><?php echo number_format($totals['act'],          0); ?></td>
+                    <td><?php echo number_format($totals['actamount'],    0); ?></td>
+                    <td><?php echo number_format($totals['renewcount'],   0); ?></td>
+                    <td><?php echo number_format($totals['renewamount'],  0); ?></td>
+                    <td><?php echo number_format($totals['totalcount'],   0); ?></td>
+                    <td><?php echo number_format($totals['totalamount'],  0); ?></td>
+                    <td><?php echo number_format($totals['cbsent'],       0); ?></td>
+                    <td><?php echo number_format($totals['digiinvest'],   0); ?></td>
+                    <td><?php echo number_format($totals['revenueshare'], 0); ?></td>
+                    <td><?php echo number_format($totals['profit'],       0); ?></td>
+                    <td><?php echo number_format($totals['ptotal'],       0); ?></td>
+                    <td><?php echo number_format($totals['pdigitin'],     0); ?></td>
+                    <td><?php echo number_format($totals['prevenue'],     0); ?></td>
+                    <td><?php echo number_format($totals['fixcost'],      0); ?></td>
+                    <td><?php echo number_format($totals['pprofit'],      0); ?></td>
+                    <td><?php echo number_format($total_growth,           0) . '%'; ?></td>
+                </tr>
+            </tfoot>
         </table>
     </div>
 </div>
