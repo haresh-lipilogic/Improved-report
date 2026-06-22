@@ -14,6 +14,8 @@ switch ($action) {
     case 'find_advertisers':         action_find_advertisers($con);         break;
     case 'find_operators_perform':   action_find_operators_perform($con);   break;
     case 'perform_data':             action_perform_data($con);             break;
+    case 'find_operators_trend':     action_find_operators_trend($con);     break;
+    case 'trend_data':               action_trend_data($con);               break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -737,6 +739,166 @@ function action_perform_data(mysqli $con): void
                         }
                     endforeach; ?>
                     <td><strong><?php echo $display === 'cr' ? number_format($sum, 2) : number_format($sum); ?></strong></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Operator dropdown for Trend Report
+// Called by: trend_report.php  →  GET ajax/handler.php?action=find_operators_trend&product=...
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_find_operators_trend(mysqli $con): void
+{
+    $product = $_GET['product'] ?? '';
+    $report  = 'gamebardb_vodafone_qatar_report';
+
+    if (strcasecmp($product, 'glambar') === 0) {
+        $prod_filter = "product = 'glambar'";
+    } elseif (strcasecmp($product, '11players') === 0) {
+        $prod_filter = "product = '11Players'";
+    } elseif (strcasecmp($product, 'contest') === 0) {
+        $prod_filter = "product = 'Contest'";
+    } else {
+        $prod_filter = "product = 'gamebar'";
+    }
+
+    $res = mysqli_query($con,
+        "SELECT * FROM {$report}.mainreportquery
+         WHERE {$prod_filter} AND (trend IS NOT NULL AND trend != '')
+         ORDER BY operator ASC"
+    );
+    ?>
+<select name="operator" id="operator" class="form-control" required>
+    <option value="">-- Select Operator --</option>
+    <?php while ($row = mysqli_fetch_array($res)): ?>
+    <option value="<?php echo htmlspecialchars($row['operator']); ?>">
+        <?php echo htmlspecialchars($row['operator']); ?>
+    </option>
+    <?php endwhile; ?>
+</select>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Trend Report data table
+// Called by: trend_report.php  →  POST ajax/handler.php?action=trend_data
+// POST params: operator, product, advertiserid, type, start_date, end_date
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_trend_data(mysqli $con): void
+{
+    $report = 'gamebardb_vodafone_qatar_report';
+
+    $operator     = mysqli_real_escape_string($con, $_POST['operator']     ?? '');
+    $product      = mysqli_real_escape_string($con, $_POST['product']      ?? '');
+    $advertiserid = mysqli_real_escape_string($con, $_POST['advertiserid'] ?? 'all');
+    $type         = mysqli_real_escape_string($con, $_POST['type']         ?? 'act');
+    $start_raw    = $_POST['start_date'] ?? date('d-m-Y');
+    $end_raw      = $_POST['end_date']   ?? date('d-m-Y');
+
+    if (!$operator || !$product) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Please select Product and Operator.
+              </div>';
+        return;
+    }
+
+    $start_date = date('Y-m-d 00:00:00', strtotime($start_raw));
+    $end_date   = date('Y-m-d 23:59:59', strtotime($end_raw));
+    // Pass advertiserid as-is — trend URL templates use the raw value (e.g. 'all')
+    $advid      = $advertiserid;
+
+    // Fetch trend URL template for this product + operator
+    $res = mysqli_query($con,
+        "SELECT trend FROM {$report}.mainreportquery
+         WHERE product='{$product}' AND operator='{$operator}' LIMIT 1"
+    );
+    $url = '';
+    if ($res && ($trow = mysqli_fetch_assoc($res))) {
+        $url = $trow['trend'];
+    }
+
+    if (!$url) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-info-circle" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No trend URL configured for this operator.</p>
+              </div>';
+        return;
+    }
+
+    $query = str_replace(
+        ['[start_date]', '[end_date]', '[advid]', '[type]'],
+        [$start_date,    $end_date,    $advid,    $type],
+        $url
+    );
+
+    $res = mysqli_query($con, $query);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Query failed. Please check trend URL configuration.</div>';
+        return;
+    }
+
+    // Build pivot: $advname[$date][$hour] = value
+    $advname  = [];
+    $dt       = [];
+    $prevdate = '';
+
+    while ($row = mysqli_fetch_array($res)) {
+        if ($prevdate === '') $prevdate = $row['dt'];
+        if ($prevdate !== $row['dt']) {
+            $dt[$prevdate] = '';
+            $prevdate      = $row['dt'];
+        }
+        $advname[$prevdate][$row['hr']] = $row['act'];
+    }
+    if ($prevdate !== '') $dt[$prevdate] = '';
+
+    if (empty($dt)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected filters.</p>
+              </div>';
+        return;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-line-chart"></i> Trend Report Results</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <table id="trend-table" class="table table-striped table-bordered" style="font-size:12px;">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <?php for ($i = 0; $i <= 23; $i++): ?>
+                    <th><?php echo $i; ?></th>
+                    <?php endfor; ?>
+                    <th><strong>Total</strong></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($dt as $date => $unused):
+                    $sum = 0;
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($date); ?></td>
+                    <?php for ($jj = 0; $jj < 24; $jj++):
+                        $val = isset($advname[$date][$jj]) && $advname[$date][$jj] !== ''
+                            ? $advname[$date][$jj] : '';
+                        $sum += (int)$val;
+                    ?>
+                    <td><?php if ($val !== ''): ?>
+                        <?php echo number_format((int)$val); ?>
+                    <?php else: ?>
+                        <span style="color:#fff;font-weight:bold;background:red;padding:2px 5px;border-radius:3px;">0</span>
+                    <?php endif; ?></td>
+                    <?php endfor; ?>
+                    <td><strong><?php echo number_format($sum); ?></strong></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

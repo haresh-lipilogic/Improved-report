@@ -29,8 +29,8 @@
     <li class="<?php echo $currentPage === 'perform.php' ? 'active' : ''; ?>">
       <a href="perform.php"><i class="fa fa-line-chart"></i> Perform Report</a>
     </li>
-    <li class="<?php echo $currentPage === 'trendreport.php' ? 'active' : ''; ?>">
-      <a href="trendreport.php"><i class="fa fa-bar-chart"></i> Trend Report</a>
+    <li class="<?php echo $currentPage === 'trend_report.php' ? 'active' : ''; ?>">
+      <a href="trend_report.php"><i class="fa fa-bar-chart"></i> Trend Report</a>
     </li>
     <li><a href="#"><i class="fa fa-clock-o"></i> Last Activity</a></li>
     <li><a href="#"><i class="fa fa-calendar"></i> Last 30 Days</a></li>
