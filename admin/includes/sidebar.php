@@ -32,7 +32,9 @@
     <li class="<?php echo $currentPage === 'trend_report.php' ? 'active' : ''; ?>">
       <a href="trend_report.php"><i class="fa fa-bar-chart"></i> Trend Report</a>
     </li>
-    <li><a href="#"><i class="fa fa-clock-o"></i> Last Activity</a></li>
+    <li class="<?php echo $currentPage === 'last_activityreport.php' ? 'active' : ''; ?>">
+      <a href="last_activityreport.php"><i class="fa fa-clock-o"></i> Last Activity</a>
+    </li>
     <li><a href="#"><i class="fa fa-calendar"></i> Last 30 Days</a></li>
     <li><a href="#"><i class="fa fa-tachometer"></i> Current Month</a></li>
     <li><a href="#"><i class="fa fa-link"></i> Advertiser Urls</a></li>

@@ -16,6 +16,7 @@ switch ($action) {
     case 'perform_data':             action_perform_data($con);             break;
     case 'find_operators_trend':     action_find_operators_trend($con);     break;
     case 'trend_data':               action_trend_data($con);               break;
+    case 'last_activity_data':       action_last_activity_data($con);       break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -899,6 +900,115 @@ function action_trend_data(mysqli $con): void
                     <?php endif; ?></td>
                     <?php endfor; ?>
                     <td><strong><?php echo number_format($sum); ?></strong></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Last Activity Report data table
+// Called by: last_activityreport.php  →  POST ajax/handler.php?action=last_activity_data
+// No POST params — loads all rows from lastactivity table
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_last_activity_data(mysqli $con): void
+{
+    $report = 'gamebardb_vodafone_qatar_report';
+    $today  = date('Y-m-d');
+
+    $res = mysqli_query($con, "SELECT * FROM {$report}.lastactivity ORDER BY id ASC");
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Failed to fetch activity records.</div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) {
+        $rows[] = $row;
+    }
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No activity records found.</p>
+              </div>';
+        return;
+    }
+
+    $data = [];
+    foreach ($rows as $row) {
+        $sql1     = trim($row['query'] ?? '');
+        $act_date = $ren_date = $cb_date = '';
+
+        if ($sql1) {
+            // multi_query handles both regular SELECTs and CALL stored-proc statements
+            if ($con->multi_query($sql1)) {
+                $result1 = $con->store_result();
+                if ($result1) {
+                    $row1 = $result1->fetch_assoc();
+                    if ($row1) {
+                        $act_date = $row1['act_date'] ?? '';
+                        $ren_date = $row1['ren_date'] ?? '';
+                        $cb_date  = $row1['cb_date']  ?? '';
+                    }
+                    $result1->free();
+                }
+                // Flush any remaining result sets (stored procedure cleanup)
+                while ($con->more_results()) {
+                    $con->next_result();
+                    $extra = $con->store_result();
+                    if ($extra) $extra->free();
+                }
+            }
+        }
+
+        $data[] = [
+            'id'       => $row['id'],
+            'product'  => $row['product']  ?? '',
+            'operator' => $row['operator'] ?? '',
+            'act_date' => $act_date,
+            'ren_date' => $ren_date,
+            'cb_date'  => $cb_date,
+        ];
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-clock-o"></i> Last Activity</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <table id="activity-table" class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Product</th>
+                    <th>Operator</th>
+                    <th>Activation</th>
+                    <th>Renewal</th>
+                    <th>Callback Sent</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($data as $d): ?>
+                <tr>
+                    <td><?php echo (int)$d['id']; ?></td>
+                    <td><?php echo htmlspecialchars($d['product']); ?></td>
+                    <td><?php echo htmlspecialchars($d['operator']); ?></td>
+                    <td>
+                        <?php $v = $d['act_date']; $c = ($v !== '' && $v > $today) ? '#68d391' : '#fc8181'; ?>
+                        <span style="color:#fff;font-weight:bold;background:<?php echo $c; ?>;padding:3px 8px;border-radius:3px;"><?php echo htmlspecialchars($v ?: '—'); ?></span>
+                    </td>
+                    <td>
+                        <?php $v = $d['ren_date']; $c = ($v !== '' && $v > $today) ? '#68d391' : '#fc8181'; ?>
+                        <span style="color:#fff;font-weight:bold;background:<?php echo $c; ?>;padding:3px 8px;border-radius:3px;"><?php echo htmlspecialchars($v ?: '—'); ?></span>
+                    </td>
+                    <td>
+                        <?php $v = $d['cb_date']; $c = ($v !== '' && $v > $today) ? '#68d391' : '#fc8181'; ?>
+                        <span style="color:#fff;font-weight:bold;background:<?php echo $c; ?>;padding:3px 8px;border-radius:3px;"><?php echo htmlspecialchars($v ?: '—'); ?></span>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
