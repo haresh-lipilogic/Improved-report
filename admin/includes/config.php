@@ -19,10 +19,25 @@ define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
 define('DB_USER', $_ENV['DB_USER'] ?? 'root');
 define('DB_PASS', $_ENV['DB_PASS'] ?? '');
 define('DB_NAME', $_ENV['DB_NAME'] ?? 'gamebardb_vodafone_qatar_report');
+define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
 
-$con   = new mysqli(DB_HOST, DB_USER, DB_PASS);
-$con55 = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
-$con11 = new mysqli(DB_HOST, DB_USER, DB_PASS);
+$con = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+
+$con55 = mysqli_connect(
+    DB_HOST,
+    DB_USER,
+    DB_PASS,
+    DB_NAME,
+    DB_PORT
+);
+
+$con11 = new mysqli(
+    DB_HOST,
+    DB_USER,
+    DB_PASS,
+    DB_NAME,
+    DB_PORT
+);
 
 if ($con->connect_errno) {
     die('Database connection failed: ' . $con->connect_error);
