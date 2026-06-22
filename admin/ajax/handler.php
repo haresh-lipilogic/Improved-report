@@ -8,10 +8,12 @@ require_once dirname(__DIR__) . '/includes/config.php';
 $action = trim($_REQUEST['action'] ?? '');
 
 switch ($action) {
-    case 'report_data':      action_report_data($con);      break;
-    case 'subdash_data':     action_subdash_data($con);     break;
-    case 'find_operators':   action_find_operators($con);   break;
-    case 'find_advertisers': action_find_advertisers($con); break;
+    case 'report_data':              action_report_data($con);              break;
+    case 'subdash_data':             action_subdash_data($con);             break;
+    case 'find_operators':           action_find_operators($con);           break;
+    case 'find_advertisers':         action_find_advertisers($con);         break;
+    case 'find_operators_perform':   action_find_operators_perform($con);   break;
+    case 'perform_data':             action_perform_data($con);             break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -559,5 +561,187 @@ function action_find_advertisers(mysqli $con): void
     </option>
     <?php endwhile; ?>
 </select>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Operator dropdown for Perform Report
+// Called by: perform.php  →  GET ajax/handler.php?action=find_operators_perform&product=...
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_find_operators_perform(mysqli $con): void
+{
+    $product = $_GET['product'] ?? '';
+    $report  = 'gamebardb_vodafone_qatar_report';
+
+    $perform_cols = "perform_act LIKE '%call%' OR perform_callback LIKE '%call%'
+                  OR perform_click LIKE '%call%' OR perform_lowbalance LIKE '%call%'
+                  OR perform_trial LIKE '%call%' OR perform_pinconfirm LIKE '%call%'
+                  OR perform_centtocg LIKE '%call%'";
+
+    if (strcasecmp($product, 'glambar') === 0) {
+        $prod_filter = "product = 'glambar'";
+    } elseif (strcasecmp($product, '11players') === 0) {
+        $prod_filter = "product = '11Players'";
+    } elseif (strcasecmp($product, 'contest') === 0) {
+        $prod_filter = "product = 'Contest'";
+    } else {
+        $prod_filter = "product = 'gamebar'";
+    }
+
+    $res = mysqli_query($con,
+        "SELECT * FROM {$report}.mainreportquery
+         WHERE {$prod_filter} AND ({$perform_cols})
+         ORDER BY operator ASC"
+    );
+    ?>
+<select name="operator" id="operator" class="form-control" required>
+    <option value="">-- Select Operator --</option>
+    <?php while ($row = mysqli_fetch_array($res)): ?>
+    <option value="<?php echo htmlspecialchars($row['operator']); ?>">
+        <?php echo htmlspecialchars($row['operator']); ?>
+    </option>
+    <?php endwhile; ?>
+</select>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Perform Report data table
+// Called by: perform.php  →  POST ajax/handler.php?action=perform_data
+// POST params: operator, product, display, start_date, end_date, hours
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_perform_data(mysqli $con): void
+{
+    $report = 'gamebardb_vodafone_qatar_report';
+
+    $operator   = mysqli_real_escape_string($con, $_POST['operator']   ?? '');
+    $product    = mysqli_real_escape_string($con, $_POST['product']    ?? '');
+    $display    = $_POST['display']    ?? 'activation';
+    $hours      = mysqli_real_escape_string($con, $_POST['hours']      ?? '24');
+    $start_raw  = $_POST['start_date'] ?? date('d-m-Y');
+    $end_raw    = $_POST['end_date']   ?? date('d-m-Y');
+
+    if (!$operator || !$product) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Please select Product and Operator.
+              </div>';
+        return;
+    }
+
+    $start_date = date('Y-m-d 00:00:00', strtotime($start_raw));
+    $end_date   = date('Y-m-d 23:59:59', strtotime($end_raw));
+
+    // ── Fetch perform URL columns for this product/operator ───────────────────
+    $res = mysqli_query($con,
+        "SELECT * FROM {$report}.mainreportquery
+         WHERE product = '{$product}' AND operator = '{$operator}' LIMIT 1"
+    );
+    $row_q = $res ? mysqli_fetch_assoc($res) : [];
+
+    // ── Map display value → column ─────────────────────────────────────────────
+    $col_map = [
+        'activation'   => 'perform_act',
+        'callbacksent' => 'perform_callback',
+        'clicks'       => 'perform_click',
+        'low'          => 'perform_lowbalance',
+        'trial'        => 'perform_trial',
+        'pinconfirmed' => 'perform_pinconfirm',
+        'cr'           => 'perform_cr',
+        'pc'           => 'perform_chargingpercent',
+        'renewal'      => 'perform_renewal',
+        'sentcg'       => 'perform_centtocg',
+    ];
+    $col = $col_map[$display] ?? 'perform_centtocg';
+    $url = $row_q[$col] ?? '';
+
+    if (!$url) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-info-circle" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No perform URL configured for this operator / display combination.</p>
+              </div>';
+        return;
+    }
+
+    // ── Build and run the query ────────────────────────────────────────────────
+    $query = str_replace(
+        ['[start_date]', '[end_date]', '[hours]'],
+        [$start_date,    $end_date,    $hours],
+        $url
+    );
+
+    $res = mysqli_query($con, $query);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Query failed. Please check perform URL configuration.</div>';
+        return;
+    }
+
+    // ── Group rows by date → advname → act ────────────────────────────────────
+    $dt      = [];
+    $advname = [];
+    $arrdt   = [];
+    $prevdate = '';
+    $act      = [];
+
+    while ($row = mysqli_fetch_array($res)) {
+        if ($prevdate === '') $prevdate = $row['dt'];
+        if ($prevdate !== $row['dt']) {
+            $dt[$prevdate] = $act;
+            $act           = [];
+            $prevdate      = $row['dt'];
+        }
+        $act[$row['advname']] = $row['act'];
+        if (!in_array($row['advname'], $advname)) $advname[] = $row['advname'];
+        if (!in_array($row['dt'],     $arrdt))    $arrdt[]   = $row['dt'];
+    }
+    if ($prevdate !== '') $dt[$prevdate] = $act;
+
+    if (empty($dt)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected filters.</p>
+              </div>';
+        return;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-table"></i> Perform Report Results</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <table id="perform-table" class="table table-striped table-bordered" style="font-size:12.5px;">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <?php foreach ($advname as $adv): ?>
+                    <th><?php echo htmlspecialchars($adv); ?></th>
+                    <?php endforeach; ?>
+                    <th><strong>Total</strong></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($dt as $date => $vals):
+                    $sum = 0;
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($date); ?></td>
+                    <?php foreach ($advname as $adv):
+                        if (array_key_exists($adv, $vals)) {
+                            $a = $display === 'cr'
+                                ? number_format((float)$vals[$adv], 2, '.', '')
+                                : $vals[$adv];
+                            $sum += (float)$vals[$adv];
+                            echo "<td>{$a}</td>";
+                        } else {
+                            echo '<td>0</td>';
+                        }
+                    endforeach; ?>
+                    <td><strong><?php echo $display === 'cr' ? number_format($sum, 2) : number_format($sum); ?></strong></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
     <?php
 }
