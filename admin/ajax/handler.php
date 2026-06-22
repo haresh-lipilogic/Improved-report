@@ -1,0 +1,563 @@
+<?php
+ini_set('max_execution_time', 6000);
+date_default_timezone_set("Asia/Calcutta");
+error_reporting(0);
+
+require_once dirname(__DIR__) . '/includes/config.php';
+
+$action = trim($_REQUEST['action'] ?? '');
+
+switch ($action) {
+    case 'report_data':      action_report_data($con);      break;
+    case 'subdash_data':     action_subdash_data($con);     break;
+    case 'find_operators':   action_find_operators($con);   break;
+    case 'find_advertisers': action_find_advertisers($con); break;
+    default:
+        http_response_code(400);
+        echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helper used by action_report_data()
+// ═══════════════════════════════════════════════════════════════════════════════
+function normalizeRow(array $row, string $fmt, float $cost): array
+{
+    if ($fmt === 'live') {
+        $act     = (int)$row['act'];
+        $clicks  = max(1, (int)$row['clicks']);
+        $actamnt = (float)$row['actamnt'];
+        $renamnt = (float)$row['renamnt'];
+        $cbsent  = (int)$row['cbsent'];
+        $total   = $actamnt + $renamnt;
+        return [
+            'date'         => date('d-m-Y', strtotime($row['dt'])),
+            'clicks'       => (int)$row['clicks'],
+            'uniq'         => (int)$row['uniq'],
+            'cg'           => (int)$row['cg'],
+            'conv'         => ($act * 100) / $clicks,
+            'act'          => $act,
+            'actamnt'      => $actamnt,
+            'ren'          => (int)$row['ren'],
+            'renamnt'      => $renamnt,
+            'total_count'  => $act + (int)$row['ren'],
+            'total_amount' => $total,
+            'churn'        => (int)$row['dct'],
+            'low_bal'      => (int)$row['Low'],
+            'cbsent'       => $cbsent,
+            'cbsent_pct'   => $act > 0 ? ($cbsent * 100) / $act : 0,
+            'advcost'      => $cbsent * $cost,
+        ];
+    }
+    $cbsent = (int)$row['cbsent'];
+    $total  = (float)$row['totalamount'];
+    return [
+        'date'         => date('d-m-Y', strtotime($row['Date'])),
+        'clicks'       => (int)$row['clicks'],
+        'uniq'         => (int)$row['uniq'],
+        'cg'           => (int)$row['cg'],
+        'conv'         => (float)$row['conversion'],
+        'act'          => (int)$row['actcount'],
+        'actamnt'      => (float)$row['actamount'],
+        'ren'          => (int)$row['renewcount'],
+        'renamnt'      => (float)$row['renewamount'],
+        'total_count'  => (int)$row['totalcount'],
+        'total_amount' => $total,
+        'churn'        => (int)$row['churn'],
+        'low_bal'      => (int)$row['park'],
+        'cbsent'       => $cbsent,
+        'cbsent_pct'   => (float)$row['cbsentpercent'],
+        'advcost'      => $cbsent * $cost,
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Main Report data table
+// Called by: report.php  →  POST ajax/handler.php?action=report_data
+// POST params: operator, product, advertiserid, start_date, end_date
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_report_data(mysqli $con): void
+{
+    $report  = 'gamebardb_vodafone_qatar_report';
+    $revenue = 0.6;
+    $cost    = 0.0;
+    $today   = date('Y-m-d');
+    $rows    = [];
+
+    $operator     = mysqli_real_escape_string($con, $_POST['operator']     ?? '');
+    $product      = mysqli_real_escape_string($con, $_POST['product']      ?? '');
+    $advertiserid = mysqli_real_escape_string($con, $_POST['advertiserid'] ?? 'all');
+    $start_date2  = $_POST['start_date'] ?? date('d-m-Y');
+    $end_date2    = $_POST['end_date']   ?? date('d-m-Y');
+
+    if (!$operator || !$product) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e"><i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>Please select Product and Operator.</div>';
+        exit;
+    }
+
+    $start_dt  = date('Y-m-d 00:00:00', strtotime($start_date2));
+    $end_dt    = date('Y-m-d 23:59:59', strtotime($end_date2));
+    $start_dt1 = date('Y-m-d', strtotime($start_date2));
+    $end_dt1   = date('Y-m-d', strtotime($end_date2));
+
+    $r = mysqli_query($con, "SELECT operator_cost FROM `{$report}`.`operatorcost` WHERE operator='{$operator}'");
+    if ($r && ($w = mysqli_fetch_assoc($r))) {
+        $cost = (float)$w['operator_cost'];
+    }
+
+    $r = mysqli_query($con, "SELECT revenueshare FROM `{$report}`.`svmobi_revenueshare` WHERE operator='{$operator}'");
+    if ($r && ($w = mysqli_fetch_assoc($r))) {
+        $revenue = (float)$w['revenueshare'] ?: 0.6;
+    }
+
+    $tpl_all = $tpl_adv = '';
+    $r = mysqli_query($con, "SELECT mainreport_all, mainreport_advertiser FROM `{$report}`.mainreportquery
+        WHERE product='{$product}' AND operator='{$operator}'");
+    if ($r && ($w = mysqli_fetch_assoc($r))) {
+        $tpl_all = $w['mainreport_all'];
+        $tpl_adv = $w['mainreport_advertiser'];
+    }
+    $adve = ($advertiserid === 'all') ? '0' : $advertiserid;
+    $tpl  = ($advertiserid === 'all') ? $tpl_all : $tpl_adv;
+
+    if ($start_dt1 === $today && $end_dt1 === $today) {
+        $q   = str_replace(['[startdate]', '[enddate]', '[advid]'], [$start_dt, $end_dt, $adve], $tpl);
+        $res = mysqli_query($con, $q);
+        if ($res) {
+            while ($row = mysqli_fetch_array($res)) {
+                $rows[] = normalizeRow($row, 'live', $cost);
+            }
+        }
+    } elseif ($end_dt1 === $today) {
+        $q_hist = "SELECT * FROM `{$report}`.mainreport
+                   WHERE date >= '{$start_dt1}' AND date < '{$end_dt1}'
+                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'";
+        $r_hist = mysqli_query($con, $q_hist);
+        if ($r_hist) {
+            while ($row = mysqli_fetch_array($r_hist)) {
+                $rows[] = normalizeRow($row, 'historical', $cost);
+            }
+        }
+        $t_start = date('Y-m-d 00:00:00');
+        $t_end   = date('Y-m-d 23:59:59');
+        $q_live  = str_replace(['[startdate]', '[enddate]', '[advid]'], [$t_start, $t_end, $adve], $tpl);
+        $r_live  = mysqli_query($con, $q_live);
+        if ($r_live) {
+            while ($row = mysqli_fetch_array($r_live)) {
+                $rows[] = normalizeRow($row, 'live', $cost);
+            }
+        }
+    } else {
+        $q_hist = "SELECT * FROM `{$report}`.mainreport
+                   WHERE date >= '{$start_dt1}' AND date <= '{$end_dt1}'
+                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'";
+        $r_hist = mysqli_query($con, $q_hist);
+        if ($r_hist) {
+            while ($row = mysqli_fetch_array($r_hist)) {
+                $rows[] = normalizeRow($row, 'historical', $cost);
+            }
+        }
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-table"></i> Report Results</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <?php if (!empty($rows)):
+            $totals = array_fill_keys(
+                ['clicks','uniq','cg','act','actamnt','ren','renamnt','total_count','total_amount','svmobi','churn','low_bal','cbsent','advcost'],
+                0
+            );
+            foreach ($rows as $r) {
+                $totals['clicks']       += $r['clicks'];
+                $totals['uniq']         += $r['uniq'];
+                $totals['cg']           += $r['cg'];
+                $totals['act']          += $r['act'];
+                $totals['actamnt']      += $r['actamnt'];
+                $totals['ren']          += $r['ren'];
+                $totals['renamnt']      += $r['renamnt'];
+                $totals['total_count']  += $r['total_count'];
+                $totals['total_amount'] += $r['total_amount'];
+                $totals['svmobi']       += $r['total_amount'] * $revenue;
+                $totals['churn']        += $r['churn'];
+                $totals['low_bal']      += $r['low_bal'];
+                $totals['cbsent']       += $r['cbsent'];
+                $totals['advcost']      += $r['advcost'];
+            }
+        ?>
+        <table id="datatable-buttons" class="table table-striped table-bordered" style="min-width:1400px">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Clicks</th>
+                    <th>With MDN</th>
+                    <th>Sent CG</th>
+                    <th>Conv %</th>
+                    <th>Activation</th>
+                    <th>Act. Amount</th>
+                    <th>Renewal</th>
+                    <th>Ren. Amount</th>
+                    <th>Total Count</th>
+                    <th>Total Amount</th>
+                    <th>SVMobi Revenue</th>
+                    <th>Churn</th>
+                    <th>Low Bal.</th>
+                    <th>CB Sent</th>
+                    <th>CB %</th>
+                    <th>Adv. Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r): ?>
+                <tr>
+                    <td><?php echo $r['date']; ?></td>
+                    <td><?php echo number_format($r['clicks']); ?></td>
+                    <td><?php echo number_format($r['uniq']); ?></td>
+                    <td><?php echo number_format($r['cg']); ?></td>
+                    <td><?php echo number_format($r['conv'], 2) . '%'; ?></td>
+                    <td><?php echo number_format($r['act']); ?></td>
+                    <td><?php echo number_format($r['actamnt']); ?></td>
+                    <td><?php echo number_format($r['ren']); ?></td>
+                    <td><?php echo number_format($r['renamnt']); ?></td>
+                    <td><?php echo number_format($r['total_count']); ?></td>
+                    <td><?php echo number_format($r['total_amount']); ?></td>
+                    <td><?php echo number_format($r['total_amount'] * $revenue); ?></td>
+                    <td><?php echo number_format($r['churn']); ?></td>
+                    <td><?php echo number_format($r['low_bal']); ?></td>
+                    <td><?php echo number_format($r['cbsent']); ?></td>
+                    <td><?php echo number_format($r['cbsent_pct']) . '%'; ?></td>
+                    <td><?php echo number_format($r['advcost']); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:bold; background:#f0f4ff">
+                    <td>Total</td>
+                    <td><?php echo number_format($totals['clicks']); ?></td>
+                    <td><?php echo number_format($totals['uniq']); ?></td>
+                    <td><?php echo number_format($totals['cg']); ?></td>
+                    <td>—</td>
+                    <td><?php echo number_format($totals['act']); ?></td>
+                    <td><?php echo number_format($totals['actamnt']); ?></td>
+                    <td><?php echo number_format($totals['ren']); ?></td>
+                    <td><?php echo number_format($totals['renamnt']); ?></td>
+                    <td><?php echo number_format($totals['total_count']); ?></td>
+                    <td><?php echo number_format($totals['total_amount']); ?></td>
+                    <td><?php echo number_format($totals['svmobi']); ?></td>
+                    <td><?php echo number_format($totals['churn']); ?></td>
+                    <td><?php echo number_format($totals['low_bal']); ?></td>
+                    <td><?php echo number_format($totals['cbsent']); ?></td>
+                    <td>—</td>
+                    <td><?php echo number_format($totals['advcost']); ?></td>
+                </tr>
+            </tfoot>
+        </table>
+        <?php else: ?>
+        <div style="padding:60px; text-align:center">
+            <i class="fa fa-inbox" style="font-size:48px; color:#e2e8f0; display:block; margin-bottom:16px"></i>
+            <p style="color:#a0aec0; margin:0">No records found for the selected filters.</p>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Sub Dashboard data table
+// Called by: subdash.php  →  POST ajax/handler.php?action=subdash_data
+// POST params: year, month, currency
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_subdash_data(mysqli $con): void
+{
+    $report = 'gamebardb_vodafone_qatar_report';
+
+    $excluded = [
+        'ZA_Vodacom_BT','ZA_Vodacom_FG','ZA_Vodacom','ZA_Vodacom_WFH',
+        'Thailand_9305_dtac','Thailand_9305_Ais',
+        'Thailand_new_9005_Ais','Thailand_new_9005_Dtac','Thailand_new_9005_Truemove',
+        'KSA_Weekly_Mobily','KSA_Weekly_STC','KSA_Weekly_zain',
+        'KSA_Daily_Mobily','KSA_Daily_STC','KSA_Daily_zain',
+        'KSA_GamePub_Weekly_Mobily','KSA_GamePub_Weekly_STC',
+        'KSA_Mobily_Weekly_Gamestation','KSA_Zain_Weekly_Gamestation','KSA_Stc_Weekly_Gamestation',
+    ];
+    $excl_sql = "'" . implode("','", $excluded) . "'";
+
+    $sel_year     = (int)($_POST['year']     ?? date('Y'));
+    $sel_month    = $_POST['month']           ?? date('m');
+    $sel_currency = $_POST['currency']        ?? 'INR';
+    $devide       = ($sel_currency === 'INR') ? 1 : 87;
+
+    if (!$sel_year || !$sel_month) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Please select Month and Year.
+              </div>';
+        exit;
+    }
+
+    $start_date1   = "{$sel_year}-{$sel_month}-01";
+    $end_date      = date('Y-m-t', strtotime($start_date1)) . ' 23:59:59';
+    $enddate       = date('Y-m-t', strtotime($start_date1));
+    $eday          = (int)date('t', strtotime($enddate));
+    $laststartdate = date('Y-m-d', strtotime($start_date1 . ' -1 month'));
+    $lastenddate   = date('Y-m-d', strtotime($start_date1 . ' -1 day'));
+
+    $is_current_month = ($sel_month == date('m') && $sel_year == (int)date('Y'));
+    if ($is_current_month) {
+        $date1   = (int)date('d', strtotime('-1 day'));
+        $orderby = 'product, country, operator';
+    } else {
+        $date1   = $eday;
+        $orderby = 'country, product, operator';
+    }
+    $date1 = max(1, $date1);
+
+    $sql = "
+        SELECT
+            a.country,
+            a.product,
+            a.operator,
+            a.actcount,
+            a.actamount    * f.toinr                                     AS actamount,
+            a.renewcount,
+            a.renewamount  * f.toinr                                     AS renewamount,
+            a.totalcount,
+            a.totalamount  * f.toinr                                     AS totalamount,
+            a.cbsent,
+            a.cbsent      * COALESCE(b.operator_cost, 0) * f.toinr      AS digiinvest,
+            a.totalamount * COALESCE(c.revenueshare,  0) * f.toinr      AS revenueshare,
+            g.ptotalamount                                               AS lastmonthrevenue
+        FROM (
+            SELECT product, country, operator,
+                   SUM(actcount)    AS actcount,
+                   SUM(actamount)   AS actamount,
+                   SUM(renewcount)  AS renewcount,
+                   SUM(renewamount) AS renewamount,
+                   SUM(totalcount)  AS totalcount,
+                   SUM(totalamount) AS totalamount,
+                   SUM(cbsent)      AS cbsent
+            FROM `{$report}`.mainreport
+            WHERE advertiser = '0'
+              AND Date >= '{$start_date1}'
+              AND Date <= '{$end_date}'
+              AND operator NOT IN ({$excl_sql})
+            GROUP BY product, country, operator
+        ) a
+        LEFT JOIN  (SELECT operator, MAX(operator_cost) AS operator_cost FROM `{$report}`.operatorcost        GROUP BY operator) b ON b.operator = a.operator
+        LEFT JOIN  (SELECT operator, MAX(revenueshare)  AS revenueshare  FROM `{$report}`.svmobi_revenueshare GROUP BY operator) c ON c.operator = a.operator
+        INNER JOIN (SELECT country,  MAX(toinr)         AS toinr          FROM `{$report}`.currency            GROUP BY country)  f ON f.country  = a.country
+        LEFT JOIN (
+            SELECT product, operator, SUM(ptotalamount) AS ptotalamount
+            FROM `{$report}`.subdashboard
+            WHERE date >= '{$laststartdate}' AND date <= '{$lastenddate}'
+            GROUP BY product, operator
+        ) g ON g.product = a.product AND g.operator = a.operator
+        WHERE (a.totalcount > 0 OR a.cbsent > 0)
+        ORDER BY {$orderby}
+    ";
+
+    $rows = [];
+    $res  = mysqli_query($con, $sql);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $rows[] = $row;
+        }
+    }
+
+    $plasttotalamount = 0.0;
+    $res3 = mysqli_query($con,
+        "SELECT SUM(ptotalamount) AS plasttotalamount
+         FROM `{$report}`.subdashboard
+         WHERE date >= '{$laststartdate}' AND date <= '{$lastenddate}'"
+    );
+    if ($res3 && ($r3 = mysqli_fetch_assoc($res3))) {
+        $plasttotalamount = (float)($r3['plasttotalamount'] ?? 0);
+    }
+
+    $totals = array_fill_keys(
+        ['act','actamount','renewcount','renewamount','totalcount','totalamount',
+         'cbsent','digiinvest','revenueshare','profit','ptotal','pdigitin','prevenue','pprofit'],
+        0.0
+    );
+    foreach ($rows as $r) {
+        $totalamt = $r['totalamount']  / $devide;
+        $digitin  = $r['digiinvest']   / $devide;
+        $revenue  = $r['revenueshare'] / $devide;
+        $profit   = ($r['revenueshare'] - $r['digiinvest']) / $devide;
+        $ptotal   = $totalamt * $eday / $date1;
+        $totals['act']          += $r['actcount'];
+        $totals['actamount']    += $r['actamount']   / $devide;
+        $totals['renewcount']   += $r['renewcount'];
+        $totals['renewamount']  += $r['renewamount']  / $devide;
+        $totals['totalcount']   += $r['totalcount'];
+        $totals['totalamount']  += $totalamt;
+        $totals['cbsent']       += $r['cbsent'];
+        $totals['digiinvest']   += $digitin;
+        $totals['revenueshare'] += $revenue;
+        $totals['profit']       += $profit;
+        $totals['ptotal']       += $ptotal;
+        $totals['pdigitin']     += $digitin  * $eday / $date1;
+        $totals['prevenue']     += $revenue  * $eday / $date1;
+        $totals['pprofit']      += $profit   * $eday / $date1;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-table"></i> Sub Dashboard Results</h4>
+    </div>
+    <div class="hp-card-body" style="padding:0; overflow-x:auto;">
+        <?php if (!empty($rows)): ?>
+        <table id="subdash-table" class="table table-striped table-bordered" style="min-width:1600px; font-size:12.5px;">
+            <thead>
+                <tr style="background:#4a5568; color:#fff; text-align:center;">
+                    <th rowspan="2">Country</th>
+                    <th rowspan="2">Product</th>
+                    <th rowspan="2">Operator</th>
+                    <th colspan="2">Activation</th>
+                    <th colspan="2">Renewal</th>
+                    <th colspan="2">Total</th>
+                    <th rowspan="2">CB Sent</th>
+                    <th rowspan="2">Digital Investment</th>
+                    <th rowspan="2">SVMobi Revenue</th>
+                    <th rowspan="2">Profit / Loss</th>
+                    <th colspan="5">Projected</th>
+                </tr>
+                <tr style="background:#4a5568; color:#fff; text-align:center;">
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Count</th><th>Amount</th>
+                    <th>Total Amt</th><th>Dig. Invest</th>
+                    <th>Revenue</th><th>P/L</th>
+                    <th>% Growth</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r):
+                    $totalamt = $r['totalamount']  / $devide;
+                    $digitin  = $r['digiinvest']   / $devide;
+                    $revenue  = $r['revenueshare'] / $devide;
+                    $profit   = ($r['revenueshare'] - $r['digiinvest']) / $devide;
+                    $ptotal   = $totalamt * $eday / $date1;
+                    $pdigitin = $digitin  * $eday / $date1;
+                    $prevenue = $revenue  * $eday / $date1;
+                    $pprofit  = $profit   * $eday / $date1;
+                    $mm       = (float)($r['lastmonthrevenue'] ?? 0) / $devide;
+                    $growth   = ($ptotal > 0) ? ($ptotal - $mm) / $ptotal * 100 : 0;
+                ?>
+                <tr>
+                    <td style="background:#dedbdb; font-weight:600;"><?php echo htmlspecialchars($r['country']); ?></td>
+                    <td style="background:#dedbdb; font-weight:600;"><?php echo htmlspecialchars($r['product']); ?></td>
+                    <td style="background:#dedbdb; font-weight:600;"><?php echo htmlspecialchars($r['operator']); ?></td>
+                    <td><?php echo number_format($r['actcount']); ?></td>
+                    <td><?php echo number_format($r['actamount'] / $devide); ?></td>
+                    <td><?php echo number_format($r['renewcount']); ?></td>
+                    <td><?php echo number_format($r['renewamount'] / $devide); ?></td>
+                    <td><?php echo number_format($r['totalcount']); ?></td>
+                    <td><?php echo number_format($totalamt); ?></td>
+                    <td><?php echo number_format($r['cbsent']); ?></td>
+                    <td><?php echo number_format($digitin); ?></td>
+                    <td><?php echo number_format($revenue); ?></td>
+                    <td><?php echo number_format($profit); ?></td>
+                    <td><?php echo number_format($ptotal); ?></td>
+                    <td><?php echo number_format($pdigitin); ?></td>
+                    <td><?php echo number_format($prevenue); ?></td>
+                    <td style="font-weight:bold; color:#fff; background:<?php echo $pprofit < 0 ? '#fc8181' : '#68d391'; ?>;">
+                        <?php echo number_format($pprofit); ?>
+                    </td>
+                    <td style="font-weight:bold; color:#fff; background:<?php echo $growth < 0 ? '#fc8181' : '#68d391'; ?>;">
+                        <?php echo number_format($growth, 1) . '%'; ?>
+                    </td>
+                </tr>
+                <?php endforeach;
+                    $total_growth = ($totals['ptotal'] > 0)
+                        ? ($totals['ptotal'] - $plasttotalamount) / $totals['ptotal'] * 100
+                        : 0;
+                ?>
+            </tbody>
+            <tfoot>
+                <tr style="background:#4a5568; color:#fff; font-weight:bold; text-align:center;">
+                    <td colspan="3">Grand Total</td>
+                    <td><?php echo number_format($totals['act']); ?></td>
+                    <td><?php echo number_format($totals['actamount']); ?></td>
+                    <td><?php echo number_format($totals['renewcount']); ?></td>
+                    <td><?php echo number_format($totals['renewamount']); ?></td>
+                    <td><?php echo number_format($totals['totalcount']); ?></td>
+                    <td><?php echo number_format($totals['totalamount']); ?></td>
+                    <td><?php echo number_format($totals['cbsent']); ?></td>
+                    <td><?php echo number_format($totals['digiinvest']); ?></td>
+                    <td><?php echo number_format($totals['revenueshare']); ?></td>
+                    <td><?php echo number_format($totals['profit']); ?></td>
+                    <td><?php echo number_format($totals['ptotal']); ?></td>
+                    <td><?php echo number_format($totals['pdigitin']); ?></td>
+                    <td><?php echo number_format($totals['prevenue']); ?></td>
+                    <td><?php echo number_format($totals['pprofit']); ?></td>
+                    <td><?php echo number_format($total_growth, 1) . '%'; ?></td>
+                </tr>
+            </tfoot>
+        </table>
+        <?php else: ?>
+        <div style="padding:60px; text-align:center;">
+            <i class="fa fa-inbox" style="font-size:48px; color:#e2e8f0; display:block; margin-bottom:16px;"></i>
+            <p style="color:#a0aec0; margin:0;">No records found for the selected filters.</p>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Operator dropdown for Main Report
+// Called by: report.php  →  GET ajax/handler.php?action=find_operators&product=...
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_find_operators(mysqli $con): void
+{
+    $product = $_GET['product'] ?? '';
+    $report  = 'gamebardb_vodafone_qatar_report';
+
+    if (strcasecmp($product, 'glambar') === 0) {
+        $sql = "SELECT * FROM {$report}.mainreportquery WHERE product='glambar'
+                AND (mainreport_all IS NOT NULL AND mainreport_all != '') ORDER BY operator ASC";
+    } elseif (in_array(strtolower($product), ['11players'])) {
+        $sql = "SELECT * FROM {$report}.mainreportquery WHERE product='11Players'
+                AND (mainreport_all IS NOT NULL AND mainreport_all != '') ORDER BY operator ASC";
+    } elseif (strcasecmp($product, 'contest') === 0) {
+        $sql = "SELECT * FROM {$report}.mainreportquery WHERE product='Contest'
+                AND (mainreport_all IS NOT NULL AND mainreport_all != '') ORDER BY operator ASC";
+    } else {
+        $sql = "SELECT * FROM {$report}.mainreportquery WHERE product='gamebar'
+                AND (mainreport_all IS NOT NULL AND mainreport_all != '') ORDER BY operator ASC";
+    }
+
+    $res = mysqli_query($con, $sql);
+    ?>
+<select name="operator" id="operator" class="form-control" required>
+    <option value="all">All</option>
+    <?php while ($row = mysqli_fetch_array($res)): ?>
+    <option value="<?php echo htmlspecialchars($row['operator']); ?>">
+        <?php echo htmlspecialchars($row['operator']); ?>
+    </option>
+    <?php endwhile; ?>
+</select>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Advertiser dropdown for Main Report
+// Called by: report.php  →  GET ajax/handler.php?action=find_advertisers&operator=...&product=...
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_find_advertisers(mysqli $con): void
+{
+    $res = mysqli_query($con, "SELECT * FROM advertiserdb.advertiser ORDER BY advname ASC");
+    ?>
+<select name="advertiserid" class="form-control" required>
+    <option value="all">All</option>
+    <?php while ($row = mysqli_fetch_array($res)): ?>
+    <option value="<?php echo htmlspecialchars($row['advertiserid']); ?>">
+        <?php echo htmlspecialchars($row['advname']); ?>
+    </option>
+    <?php endwhile; ?>
+</select>
+    <?php
+}

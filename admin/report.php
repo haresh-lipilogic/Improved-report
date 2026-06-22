@@ -114,7 +114,7 @@ $(document).ready(function () {
             $('#f1').html('<select class="form-control" disabled><option>-- Select Product First --</option></select>');
             return;
         }
-        $.get('ajax/findoperatormainreport.php', { product: product }, function (data) {
+        $.get('ajax/handler.php', { action: 'find_operators', product: product }, function (data) {
             $('#f1').html(data);
         });
     });
@@ -125,7 +125,7 @@ $(document).ready(function () {
         var product  = $('#product').val();
         if (!operator) return;
         $('#f').html('<select class="form-control" disabled><option>Loading...</option></select>');
-        $.get('ajax/advertisermainreport.php', { operator: operator, product: product }, function (data) {
+        $.get('ajax/handler.php', { action: 'find_advertisers', operator: operator, product: product }, function (data) {
             $('#f').html(data);
         });
     });
@@ -155,9 +155,9 @@ $(document).ready(function () {
         }
 
         $.ajax({
-            url:    'ajax/report_data.php',
+            url:    'ajax/handler.php',
             method: 'POST',
-            data:   $(this).serialize(),
+            data:   $(this).serialize() + '&action=report_data',
             success: function (html) {
                 $('#report-results').html(html);
 

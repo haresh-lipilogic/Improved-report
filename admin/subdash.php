@@ -107,9 +107,9 @@ $(document).ready(function () {
         }
 
         $.ajax({
-            url:    'ajax/subdash_data.php',
+            url:    'ajax/handler.php',
             method: 'POST',
-            data:   $(this).serialize(),
+            data:   $(this).serialize() + '&action=subdash_data',
             success: function (html) {
                 $('#subdash-results').html(html);
 
