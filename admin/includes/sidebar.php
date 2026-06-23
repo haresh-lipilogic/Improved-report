@@ -6,11 +6,15 @@
   </div>
 
   <!-- User profile block -->
+  <?php
+    $displayName = ucfirst($_SESSION['username'] ?? 'User');
+    $displayRole = !empty($_SESSION['admin']) ? 'Administrator' : 'User';
+  ?>
   <div class="hp-sidebar-profile">
-    <img src="images/dp.jpg" class="hp-sidebar-avatar" alt="Durgesh Panchal">
+    <img src="images/dp.jpg" class="hp-sidebar-avatar" alt="<?php echo htmlspecialchars($displayName); ?>">
     <div class="hp-sidebar-profile-info">
-      <span class="hp-sidebar-profile-name">Durgesh Panchal</span>
-      <span class="hp-sidebar-profile-role">Administrator</span>
+      <span class="hp-sidebar-profile-name"><?php echo htmlspecialchars($displayName); ?></span>
+      <span class="hp-sidebar-profile-role"><?php echo $displayRole; ?></span>
     </div>
   </div>
   <ul class="hp-nav">
