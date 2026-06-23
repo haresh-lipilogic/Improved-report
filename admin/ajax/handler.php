@@ -19,6 +19,9 @@ switch ($action) {
     case 'last_activity_data':       action_last_activity_data($con);       break;
     case 'performance_data':         action_performance_data($con);         break;
     case 'performance2_data':        action_performance2_data($con);        break;
+    case 'urlmake_operators':        action_urlmake_operators($con);        break;
+    case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
+    case 'urlmake_generate':         action_urlmake_generate($con);         break;
     case 'dashboard_data':           action_dashboard_data($con);           break;
     default:
         http_response_code(400);
@@ -1272,6 +1275,129 @@ function action_performance2_data(mysqli $con): void
     </div>
 </div>
     <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: URL Maker — operator list for a product
+// Called by: urlmake.php  →  POST ajax/handler.php?action=urlmake_operators
+// POST params: product
+// Returns: JSON string[]
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_urlmake_operators(mysqli $con): void
+{
+    header('Content-Type: application/json');
+    $product = trim($_POST['product'] ?? '');
+    if (!$product) { echo json_encode([]); return; }
+
+    $stmt = $con->prepare(
+        'SELECT DISTINCT operatorname
+         FROM gamebardb_vodafone_qatar_report.operatorurls
+         WHERE product=? ORDER BY operatorname ASC'
+    );
+    if (!$stmt) { echo json_encode([]); return; }
+    $stmt->bind_param('s', $product);
+    $stmt->execute();
+    $opname = null;
+    $stmt->bind_result($opname);
+    $ops = [];
+    while ($stmt->fetch()) { $ops[] = $opname; }
+    $stmt->close();
+    echo json_encode($ops);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: URL Maker — advertiser list for a product+operator
+// Called by: urlmake.php  →  POST ajax/handler.php?action=urlmake_advertisers
+// POST params: product, operator
+// Returns: JSON {id, name}[]
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_urlmake_advertisers(mysqli $con): void
+{
+    header('Content-Type: application/json');
+    $product  = trim($_POST['product']  ?? '');
+    $operator = trim($_POST['operator'] ?? '');
+    if (!$product || !$operator) { echo json_encode([]); return; }
+
+    $stmt = $con->prepare(
+        'SELECT advertiserquery
+         FROM gamebardb_vodafone_qatar_report.operatorurls
+         WHERE product=? AND operatorname=? LIMIT 1'
+    );
+    if (!$stmt) { echo json_encode([]); return; }
+    $stmt->bind_param('ss', $product, $operator);
+    $stmt->execute();
+    $aq = null;
+    $stmt->bind_result($aq);
+    $stmt->fetch();
+    $stmt->close();
+
+    if (empty($aq)) { echo json_encode([]); return; }
+
+    $res = mysqli_query($con, $aq);
+    $advertisers = [];
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $advertisers[] = ['id' => $row['advertiserid'], 'name' => $row['advname']];
+        }
+        $res->close();
+    }
+    echo json_encode($advertisers);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: URL Maker — generate URL for product+operator+advertiser
+// Called by: urlmake.php  →  POST ajax/handler.php?action=urlmake_generate
+// POST params: product, operator, advertiserid
+// Returns: JSON {url, advid, advname} or {error}
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_urlmake_generate(mysqli $con): void
+{
+    header('Content-Type: application/json');
+    $product      = trim($_POST['product']      ?? '');
+    $operator     = trim($_POST['operator']     ?? '');
+    $advertiserid = trim($_POST['advertiserid'] ?? '');
+
+    if (!$product || !$operator || !$advertiserid) {
+        echo json_encode(['error' => 'All fields are required.']); return;
+    }
+
+    $stmt = $con->prepare(
+        'SELECT advertiserurl, advertiserwise_query
+         FROM gamebardb_vodafone_qatar_report.operatorurls
+         WHERE product=? AND operatorname=? LIMIT 1'
+    );
+    if (!$stmt) { echo json_encode(['error' => 'Database error.']); return; }
+    $stmt->bind_param('ss', $product, $operator);
+    $stmt->execute();
+    $advertiserurl = $advertiserwise_query = null;
+    $stmt->bind_result($advertiserurl, $advertiserwise_query);
+    $stmt->fetch();
+    $stmt->close();
+
+    if (empty($advertiserurl)) {
+        echo json_encode(['error' => 'Operator configuration not found.']); return;
+    }
+
+    $awQuery = str_replace('[advid]', (int)$advertiserid, $advertiserwise_query);
+    $res = mysqli_query($con, $awQuery);
+    if (!$res) {
+        echo json_encode(['error' => 'Advertiser query failed.']); return;
+    }
+
+    $row = mysqli_fetch_assoc($res);
+    $res->close();
+
+    if (!$row) {
+        echo json_encode(['error' => 'No advertiser data found.']); return;
+    }
+
+    $url = str_replace(['[adid]', '[uid]'], [$row['advertiserid'], $row['uid']], $advertiserurl);
+
+    echo json_encode([
+        'url'     => $url,
+        'advid'   => $row['advertiserid'],
+        'advname' => $row['advname'],
+    ]);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
