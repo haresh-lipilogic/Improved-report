@@ -48,8 +48,26 @@
     <li class="<?php echo $currentPage === 'urlmake.php' ? 'active' : ''; ?>">
       <a href="urlmake.php"><i class="fa fa-link"></i> Advertiser Urls</a>
     </li>
-    <li class="<?php echo $currentPage === 'contest.php' ? 'active' : ''; ?>">
-      <a href="contest.php"><i class="fa fa-trophy"></i> Contest</a>
+    <?php
+      $contestPages = ['contest.php','contest_charging.php','promotional_activity.php','engagement_activity.php'];
+      $contestOpen  = in_array($currentPage, $contestPages) ? 'open' : '';
+    ?>
+    <li class="has-submenu <?php echo $contestOpen; ?>">
+      <a href="#"><i class="fa fa-trophy"></i> Contest</a>
+      <ul class="hp-submenu">
+        <li class="<?php echo $currentPage === 'contest.php'           ? 'active' : ''; ?>">
+          <a href="contest.php">Leaderboard</a>
+        </li>
+        <li class="<?php echo $currentPage === 'contest_charging.php'       ? 'active' : ''; ?>">
+          <a href="contest_charging.php">Charging Report</a>
+        </li>
+        <li class="<?php echo $currentPage === 'promotional_activity.php'  ? 'active' : ''; ?>">
+          <a href="promotional_activity.php">Promotional Activity</a>
+        </li>
+        <li class="<?php echo $currentPage === 'engagement_activity.php'   ? 'active' : ''; ?>">
+          <a href="engagement_activity.php">Engagement Activity</a>
+        </li>
+      </ul>
     </li>
     <li class="<?php echo $currentPage === 'api.php' ? 'active' : ''; ?>">
       <a href="api.php"><i class="fa fa-plug"></i> API</a>
@@ -59,3 +77,14 @@
     </li>
   </ul>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.hp-nav .has-submenu > a').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      this.closest('li').classList.toggle('open');
+    });
+  });
+});
+</script>

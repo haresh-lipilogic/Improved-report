@@ -19,6 +19,8 @@ switch ($action) {
     case 'last_activity_data':       action_last_activity_data($con);       break;
     case 'performance_data':         action_performance_data($con);         break;
     case 'performance2_data':        action_performance2_data($con);        break;
+    case 'contest_data':             action_contest_data($con);             break;
+    case 'contest_charging_data':    action_contest_charging_data($con);    break;
     case 'urlmake_operators':        action_urlmake_operators($con);        break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -889,7 +891,7 @@ function action_trend_data(mysqli $con): void
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($dt as $date => $unused):
+                <?php foreach (array_keys($dt) as $date):
                     $sum = 0;
                 ?>
                 <tr>
@@ -1278,6 +1280,312 @@ function action_performance2_data(mysqli $con): void
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Contest Leaderboard data table
+// Called by: contest.php  →  POST ajax/handler.php?action=contest_data
+// POST params: country (qa|bh), group (day|all), msisdn (optional)
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_contest_data(mysqli $con): void
+{
+    $country = trim($_POST['country'] ?? 'qa');
+    $group   = trim($_POST['group']   ?? 'day');
+    $msisdn  = trim($_POST['msisdn']  ?? '');
+
+    // Whitelist country and group
+    $db    = ($country === 'bh') ? 'contestdb_bh' : 'contestdb_qaoo';
+    $group = ($group === 'all')  ? 'all'           : 'day';
+
+    // When an MSISDN filter is given, force day-level grouping
+    $condition = '';
+    if ($msisdn !== '') {
+        $condition = "msisdn = '" . mysqli_real_escape_string($con, $msisdn) . "' AND ";
+        $group     = 'day';
+    }
+
+    if ($group === 'day') {
+        $sql = "
+            SELECT msisdn,
+                   SUM(CASE WHEN result = 'wrong'                    THEN c ELSE 0 END) AS wrong,
+                   SUM(CASE WHEN result = 'correct'                  THEN c ELSE 0 END) AS correct,
+                   SUM(CASE WHEN result = 'missed' OR result = ''    THEN c ELSE 0 END) AS missed,
+                   dt
+            FROM (
+                SELECT msisdn, COUNT(*) AS c, result, DATE(answerdatetime) dt
+                FROM {$db}.contestlog
+                WHERE {$condition}
+                      msisdn IN (
+                          SELECT msisdn FROM {$db}.subscriber
+                          WHERE subscriberid IN (
+                              SELECT MAX(subscriberid) FROM {$db}.subscriber GROUP BY msisdn
+                          ) AND charging_mode != 'dct'
+                      )
+                GROUP BY msisdn, result, dt
+            ) sub
+            GROUP BY msisdn, dt
+            ORDER BY msisdn DESC";
+    } else {
+        $sql = "
+            SELECT msisdn,
+                   SUM(CASE WHEN result = 'wrong'                    THEN c ELSE 0 END) AS wrong,
+                   SUM(CASE WHEN result = 'correct'                  THEN c ELSE 0 END) AS correct,
+                   SUM(CASE WHEN result = 'missed' OR result = ''    THEN c ELSE 0 END) AS missed
+            FROM (
+                SELECT msisdn, COUNT(*) AS c, result
+                FROM {$db}.contestlog
+                WHERE {$condition}
+                      msisdn IN (
+                          SELECT msisdn FROM {$db}.subscriber
+                          WHERE subscriberid IN (
+                              SELECT MAX(subscriberid) FROM {$db}.subscriber GROUP BY msisdn
+                          ) AND charging_mode != 'dct'
+                      )
+                GROUP BY msisdn, result
+            ) sub
+            GROUP BY msisdn";
+    }
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Query failed. Please try again.
+              </div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected filters.</p>
+              </div>';
+        return;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-trophy"></i> Contest Leaderboard
+            <small style="font-size:12px;font-weight:400;color:#a0aec0;margin-left:10px;">
+                <?php echo strtoupper(htmlspecialchars($country)); ?> &middot;
+                <?php echo $group === 'day' ? 'By Day' : 'All Time'; ?>
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0;overflow-x:auto;">
+        <table id="contest-table" class="table table-striped table-bordered" style="font-size:13px;">
+            <thead style="background:#4a5568;color:#fff;text-align:center;">
+                <tr>
+                    <th>MSISDN</th>
+                    <?php if ($group === 'day'): ?><th>Date</th><?php endif; ?>
+                    <th>Correct</th>
+                    <th>Wrong</th>
+                    <th>Missed</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $correct_sum = $wrong_sum = $missed_sum = $total_sum = 0;
+                foreach ($rows as $r):
+                    $c           = (int)$r['correct'];
+                    $correct_sum += $c;
+                    $wrong_sum   += (int)$r['wrong'];
+                    $missed_sum  += (int)$r['missed'];
+                    $scoreVal    = $group === 'day' ? $c * 10 : $c * 10 + 100;
+                    $total_sum   += $scoreVal;
+                    $scoreText   = $group === 'day'
+                        ? (string)($c * 10)
+                        : ($c * 10) . ' + 100(Bonus) = ' . ($c * 10 + 100);
+                    $correctStyle = $c === 5 ? ' style="background:blueviolet;color:#fff;font-weight:bold;"' : '';
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($r['msisdn']); ?></td>
+                    <?php if ($group === 'day'): ?>
+                    <td><?php echo date('d-m-Y', strtotime($r['dt'])); ?></td>
+                    <?php endif; ?>
+                    <td<?php echo $correctStyle; ?>><?php echo $c; ?></td>
+                    <td><?php echo (int)$r['wrong']; ?></td>
+                    <td><?php echo (int)$r['missed']; ?></td>
+                    <td><?php echo $scoreText; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <?php if ($msisdn !== ''): ?>
+            <tfoot>
+                <tr style="font-weight:bold;background:#f0f4ff;">
+                    <td>Total</td>
+                    <?php if ($group === 'day'): ?><td></td><?php endif; ?>
+                    <td><?php echo number_format($correct_sum); ?></td>
+                    <td><?php echo number_format($wrong_sum); ?></td>
+                    <td><?php echo number_format($missed_sum); ?></td>
+                    <td><?php echo number_format($correct_sum * 10) . ' + 100(Bonus) = ' . number_format($correct_sum * 10 + 100); ?></td>
+                </tr>
+            </tfoot>
+            <?php endif; ?>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Contest Charging Report data table
+// Called by: contest_charging.php  →  POST ajax/handler.php?action=contest_charging_data
+// POST params: country (qa|bh), start_date (d-m-Y), end_date (d-m-Y)
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_contest_charging_data(mysqli $con): void
+{
+    $country   = trim($_POST['country']    ?? 'qa');
+    $start_raw = trim($_POST['start_date'] ?? date('d-m-Y'));
+    $end_raw   = trim($_POST['end_date']   ?? date('d-m-Y'));
+
+    // Whitelist country
+    $db = ($country === 'bh') ? 'contestdb_bh' : 'contestdb_qaoo';
+
+    // Parse dates (picker sends d-m-Y)
+    $dtStart = DateTime::createFromFormat('d-m-Y', $start_raw);
+    $dtEnd   = DateTime::createFromFormat('d-m-Y', $end_raw);
+    if (!$dtStart || !$dtEnd) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Invalid date format. Please use the date picker.</div>';
+        return;
+    }
+
+    $startdate = $dtStart->format('Y-m-d') . ' 00:00:00';
+    $enddate   = $dtEnd->format('Y-m-d')   . ' 23:59:59';
+
+    $sql = "
+        SELECT dt,
+               SUM(act)        AS act,
+               SUM(actamnt)    AS actamnt,
+               SUM(ren)        AS ren,
+               SUM(renamnt)    AS renamnt,
+               SUM(oneshot)    AS oneshot,
+               SUM(oneshotamt) AS oneshotamt
+        FROM (
+            SELECT COUNT(DISTINCT msisdn) AS act, SUM(amount) AS actamnt,
+                   0 AS ren, 0 AS renamnt, 0 AS oneshot, 0 AS oneshotamt,
+                   DATE(subscriptionstartdate) AS dt
+            FROM {$db}.subscriber
+            WHERE subscriptionstartdate >= '{$startdate}'
+              AND subscriptionstartdate <= '{$enddate}'
+              AND charging_mode = 'act'
+            GROUP BY dt
+            UNION ALL
+            SELECT 0 AS act, 0 AS actamnt,
+                   COUNT(msisdn) AS ren, SUM(amount) AS renamnt,
+                   0 AS oneshot, 0 AS oneshotamt,
+                   DATE(subscriptionstartdate) AS dt
+            FROM {$db}.subscriber
+            WHERE subscriptionstartdate >= '{$startdate}'
+              AND subscriptionstartdate <= '{$enddate}'
+              AND charging_mode = 'ren'
+            GROUP BY dt
+            UNION ALL
+            SELECT 0 AS act, 0 AS actamnt,
+                   0 AS ren, 0 AS renamnt,
+                   COUNT(msisdn) AS oneshot, SUM(amount) AS oneshotamt,
+                   DATE(subscriptionstartdate) AS dt
+            FROM {$db}.subscriber
+            WHERE subscriptionstartdate >= '{$startdate}'
+              AND subscriptionstartdate <= '{$enddate}'
+              AND charging_mode = 'oneshot'
+            GROUP BY dt
+        ) a
+        GROUP BY dt
+        ORDER BY dt ASC
+    ";
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Query failed. Please try again.
+              </div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected period.</p>
+              </div>';
+        return;
+    }
+
+    $act_sum = $ren_sum = $oneshot_sum = 0;
+    $actamt_sum = $renamt_sum = $oneshotamt_sum = $total_amt = 0.0;
+    foreach ($rows as $r) {
+        $act_sum        += (int)$r['act'];
+        $ren_sum        += (int)$r['ren'];
+        $oneshot_sum    += (int)$r['oneshot'];
+        $actamt_sum     += (float)$r['actamnt'];
+        $renamt_sum     += (float)$r['renamnt'];
+        $oneshotamt_sum += (float)$r['oneshotamt'];
+        $total_amt      += (float)$r['actamnt'] + (float)$r['renamnt'] + (float)$r['oneshotamt'];
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-credit-card"></i> Charging Report
+            <small style="font-size:12px;font-weight:400;color:#a0aec0;margin-left:10px;">
+                <?php echo strtoupper(htmlspecialchars($country)); ?> &middot;
+                <?php echo $dtStart->format('d M Y'); ?> – <?php echo $dtEnd->format('d M Y'); ?>
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0;overflow-x:auto;">
+        <table id="charging-table" class="table table-striped table-bordered" style="font-size:13px;">
+            <thead style="background:#4a5568;color:#fff;text-align:center;">
+                <tr>
+                    <th>Date</th>
+                    <th>Activation</th>
+                    <th>Act. Amount</th>
+                    <th>Renewal</th>
+                    <th>Ren. Amount</th>
+                    <th>OneShot</th>
+                    <th>OneShot Amt</th>
+                    <th>Total Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($r['dt']); ?></td>
+                    <td><?php echo number_format((int)$r['act']); ?></td>
+                    <td><?php echo number_format((float)$r['actamnt'], 2); ?></td>
+                    <td><?php echo number_format((int)$r['ren']); ?></td>
+                    <td><?php echo number_format((float)$r['renamnt'], 2); ?></td>
+                    <td><?php echo number_format((int)$r['oneshot']); ?></td>
+                    <td><?php echo number_format((float)$r['oneshotamt'], 2); ?></td>
+                    <td><?php echo number_format((float)$r['actamnt'] + (float)$r['renamnt'] + (float)$r['oneshotamt'], 2); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:bold;background:#4a5568;color:#fff;text-align:center;">
+                    <td>Total</td>
+                    <td><?php echo number_format($act_sum); ?></td>
+                    <td><?php echo number_format($actamt_sum, 2); ?></td>
+                    <td><?php echo number_format($ren_sum); ?></td>
+                    <td><?php echo number_format($renamt_sum, 2); ?></td>
+                    <td><?php echo number_format($oneshot_sum); ?></td>
+                    <td><?php echo number_format($oneshotamt_sum, 2); ?></td>
+                    <td><?php echo number_format($total_amt, 2); ?></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ACTION: URL Maker — operator list for a product
 // Called by: urlmake.php  →  POST ajax/handler.php?action=urlmake_operators
 // POST params: product
@@ -1378,7 +1686,7 @@ function action_urlmake_generate(mysqli $con): void
         echo json_encode(['error' => 'Operator configuration not found.']); return;
     }
 
-    $awQuery = str_replace('[advid]', (int)$advertiserid, $advertiserwise_query);
+    $awQuery = str_replace('[advid]', (int)$advertiserid, (string)$advertiserwise_query);
     $res = mysqli_query($con, $awQuery);
     if (!$res) {
         echo json_encode(['error' => 'Advertiser query failed.']); return;
@@ -1396,7 +1704,7 @@ function action_urlmake_generate(mysqli $con): void
     echo json_encode([
         'url'     => $url,
         'advid'   => $row['advertiserid'],
-        'advname' => $row['advname'],
+        'advname' => $row['advname']
     ]);
 }
 
