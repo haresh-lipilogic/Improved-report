@@ -23,20 +23,7 @@ switch ($action) {
     case 'contest_charging_data':    action_contest_charging_data($con);    break;
     case 'promotion_data':           action_promotion_data($con);           break;
     case 'engagement_data':          action_engagement_data($con);          break;
-    case 'api_report_data':
-        if ($con_prod) {
-            action_api_report_data($con_prod);
-        } else {
-            echo '<div style="padding:50px;text-align:center;color:#e53e3e">
-                    <i class="fa fa-server" style="font-size:38px;display:block;margin-bottom:14px"></i>
-                    <strong>Production database not reachable.</strong><br>
-                    <span style="color:#718096;font-size:13px;margin-top:8px;display:block;">
-                        This report requires a direct connection to the production server.<br>
-                        Please access it from the live server.
-                    </span>
-                  </div>';
-        }
-        break;
+    case 'api_report_data':          action_api_report_data();              break;
     case 'urlmake_operators':        action_urlmake_operators($con);        break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -1607,8 +1594,21 @@ function action_contest_charging_data(mysqli $con): void
 // POST params: country, advpb (advertiser|publisher), start_date (d-m-Y), end_date (d-m-Y)
 // Returns: HTML table
 // ═══════════════════════════════════════════════════════════════════════════════
-function action_api_report_data(mysqli $con): void
+function action_api_report_data(): void
 {
+    // Own connection — same host/credentials as connection_jay.php
+    $con = new mysqli(DB_PROD_HOST, DB_USER, DB_PASS, '', (int)DB_PROD_PORT);
+    if ($con->connect_errno) {
+        echo '<div style="padding:50px;text-align:center;color:#e53e3e">
+                <i class="fa fa-server" style="font-size:38px;display:block;margin-bottom:14px"></i>
+                <strong>Production database not reachable.</strong>
+                <div style="margin-top:8px;font-size:12px;color:#718096;">'
+                . htmlspecialchars($con->connect_error) .
+                '</div>
+              </div>';
+        return;
+    }
+
     $allowed_countries = ['sa','ae','om','kw','ps','iq','qa','pl','bh'];
     $allowed_advpb     = ['advertiser','publisher'];
 
@@ -1636,7 +1636,6 @@ function action_api_report_data(mysqli $con): void
     $union_cols_pub = "dt, operator, advertiserid";
 
     if ($advpb === 'advertiser') {
-        $gcols = "dt, operator, advertiserid, partner";
         $sql = "
             SELECT dt, SUM(clicks) AS clicks, SUM(uniq) AS uniq, SUM(pg) AS pg,
                    SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
@@ -1646,40 +1645,40 @@ function action_api_report_data(mysqli $con): void
                        SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
                        operator, advertiserid, partner
                 FROM (
-                    SELECT COUNT(DISTINCT clickid) AS clicks,0 AS uniq,0 AS pg,0 AS pv,0 AS act,0 AS cbs,
+                    SELECT COUNT(DISTINCT clickid) AS clicks, 0 AS uniq, 0 AS pg, 0 AS pv, 0 AS act, 0 AS cbs,
                            DATE(accesstime) AS dt, operator, advertiserid, partner
                     FROM {$db}.userlog
                     WHERE accesstime >= '{$startdate}' AND accesstime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid, partner
                     UNION ALL
-                    SELECT 0,COUNT(DISTINCT msisdn),0,0,0,0,
-                           DATE(pindatetime), operator, advertiserid, partner
+                    SELECT 0, COUNT(DISTINCT msisdn) AS uniq, 0, 0, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid, partner
                     FROM {$db}.requestpin
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid, partner
                     UNION ALL
-                    SELECT 0,0,COUNT(DISTINCT msisdn),0,0,0,
-                           DATE(pindatetime), operator, advertiserid, partner
+                    SELECT 0, 0, COUNT(DISTINCT msisdn) AS pg, 0, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid, partner
                     FROM {$db}.requestpin
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                       AND (status = 'success' OR status = 'SUCCESS')
                     GROUP BY dt, operator, advertiserid, partner
                     UNION ALL
-                    SELECT 0,0,0,COUNT(DISTINCT msisdn),0,0,
-                           DATE(pindatetime), operator, advertiserid, partner
+                    SELECT 0, 0, 0, COUNT(DISTINCT msisdn) AS pv, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid, partner
                     FROM {$db}.pinverify
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid, partner
                     UNION ALL
-                    SELECT 0,0,0,0,COUNT(DISTINCT msisdn),0,
-                           DATE(pindatetime), operator, advertiserid, partner
+                    SELECT 0, 0, 0, 0, COUNT(DISTINCT msisdn) AS act, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid, partner
                     FROM {$db}.pinverify
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                       AND (status = 'success' OR status = 'pending')
                     GROUP BY dt, operator, advertiserid, partner
                     UNION ALL
-                    SELECT 0,0,0,0,0,COUNT(DISTINCT msisdn),
-                           DATE(advertdatetime), operator, advertiserid, partner
+                    SELECT 0, 0, 0, 0, 0, COUNT(DISTINCT msisdn) AS cbs,
+                           DATE(advertdatetime) AS dt, operator, advertiserid, partner
                     FROM {$db}.advertcallback
                     WHERE advertdatetime >= '{$startdate}' AND advertdatetime <= '{$enddate}'
                       AND advertresponse != 'stop' AND action = 'cg'
@@ -1701,40 +1700,40 @@ function action_api_report_data(mysqli $con): void
                        SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
                        operator, advertiserid
                 FROM (
-                    SELECT COUNT(DISTINCT clickid) AS clicks,0 AS uniq,0 AS pg,0 AS pv,0 AS act,0 AS cbs,
+                    SELECT COUNT(DISTINCT clickid) AS clicks, 0 AS uniq, 0 AS pg, 0 AS pv, 0 AS act, 0 AS cbs,
                            DATE(accesstime) AS dt, operator, advertiserid
                     FROM {$db}.userlog
                     WHERE accesstime >= '{$startdate}' AND accesstime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid
                     UNION ALL
-                    SELECT 0,COUNT(DISTINCT msisdn),0,0,0,0,
-                           DATE(pindatetime), operator, advertiserid
+                    SELECT 0, COUNT(DISTINCT msisdn) AS uniq, 0, 0, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid
                     FROM {$db}.requestpin
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid
                     UNION ALL
-                    SELECT 0,0,COUNT(DISTINCT msisdn),0,0,0,
-                           DATE(pindatetime), operator, advertiserid
+                    SELECT 0, 0, COUNT(DISTINCT msisdn) AS pg, 0, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid
                     FROM {$db}.requestpin
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                       AND (status = 'success' OR status = 'SUCCESS')
                     GROUP BY dt, operator, advertiserid
                     UNION ALL
-                    SELECT 0,0,0,COUNT(DISTINCT msisdn),0,0,
-                           DATE(pindatetime), operator, advertiserid
+                    SELECT 0, 0, 0, COUNT(DISTINCT msisdn) AS pv, 0, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid
                     FROM {$db}.pinverify
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                     GROUP BY dt, operator, advertiserid
                     UNION ALL
-                    SELECT 0,0,0,0,COUNT(DISTINCT msisdn),0,
-                           DATE(pindatetime), operator, advertiserid
+                    SELECT 0, 0, 0, 0, COUNT(DISTINCT msisdn) AS act, 0,
+                           DATE(pindatetime) AS dt, operator, advertiserid
                     FROM {$db}.pinverify
                     WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
                       AND (status = 'success' OR status = 'pending')
                     GROUP BY dt, operator, advertiserid
                     UNION ALL
-                    SELECT 0,0,0,0,0,COUNT(DISTINCT msisdn),
-                           DATE(advertdatetime), operator, advertiserid
+                    SELECT 0, 0, 0, 0, 0, COUNT(DISTINCT msisdn) AS cbs,
+                           DATE(advertdatetime) AS dt, operator, advertiserid
                     FROM {$db}.advertcallback
                     WHERE advertdatetime >= '{$startdate}' AND advertdatetime <= '{$enddate}'
                       AND advertresponse != 'stop' AND action = 'cg'
@@ -1750,9 +1749,13 @@ function action_api_report_data(mysqli $con): void
 
     $res = mysqli_query($con, $sql);
     if (!$res) {
+        $err = mysqli_error($con);
         echo '<div style="padding:40px;text-align:center;color:#e53e3e">
                 <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
-                Query failed. Please try again.
+                <strong>Query failed.</strong>
+                <div style="margin-top:10px;font-size:12px;color:#718096;word-break:break-all;">'
+                . htmlspecialchars($err) .
+                '</div>
               </div>';
         return;
     }
@@ -1854,6 +1857,7 @@ function action_api_report_data(mysqli $con): void
     </div>
 </div>
     <?php
+    $con->close();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

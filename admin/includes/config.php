@@ -25,9 +25,6 @@ define('DB_PROD_PORT', $_ENV['DB_PROD_PORT'] ?? '3306');
 
 $con = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
 
-// Production server connection (fashionbardb_airg_* and other prod-only databases)
-$con_prod = new mysqli(DB_PROD_HOST, DB_USER, DB_PASS, '', (int)DB_PROD_PORT);
-if ($con_prod->connect_errno) { $con_prod = null; }
 
 $con55 = mysqli_connect(
     DB_HOST,
