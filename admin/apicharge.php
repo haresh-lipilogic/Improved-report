@@ -1,320 +1,167 @@
 <?php
-include("includes/connection_jay.php");
+ini_set('max_execution_time', 6000);
+date_default_timezone_set("Asia/Calcutta");
 error_reporting(0);
 
+$pageTitle = 'API Charging %';
+$pageIcon  = 'fa-percent';
 
-$startdate='';
-$enddate='';
-$operator='';
-$partner='';
-$type='';
-$count=0;
-$cc=0; 
-if(isset($_POST['submit']))
-{
-	
-	$count=1;	
-	$advpb=$_POST['advpb'];
-	$db=$_POST['country'];
-	$country=$_POST['country'];
-	$startdate=date('Y-m-d',strtotime($_POST['start_date']))." 00:00:00";  
-	$enddate=date('Y-m-d',strtotime($_POST['end_date']))." 23:59:59";
-	
-	if($db=="fashionbardb_psjw" || $db=="fashionbardb_psoo")
-	{
-		$sql="SELECT 
-		advname, SUM(c) cg, SUM(b) act, ((b / c) * 100) p
-			FROM
-				(SELECT 
-					COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advertiserid
-				FROM
-					(SELECT DISTINCT
-					msisdn msisdn, advertiserid
-				FROM
-					".$db.".subscriber
-				WHERE
-					subscriptionstartdate >= '".$startdate."'
-						AND subscriptionstartdate <= '".$enddate."'
-						AND (charging_mode = 'act'
-            OR charging_mode = 'low')) a
-				LEFT JOIN (SELECT DISTINCT
-					msisdn msisdn, advertiserid
-				FROM
-					".$db.".subscriber
-				WHERE
-					subscriptionstartdate >= '".$startdate."'
-						AND (charging_mode = 'act'
-						OR charging_mode = 'ren')) b ON a.msisdn = b.msisdn
-				GROUP BY advertiserid) aa
-					INNER JOIN
-				advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid
-		GROUP BY advname , p;
-				";	
-	}
-	else if($db=="gamebar_iqmw_api" || $db=="gamebar_iqmw_api")
-	{
-		 $sql="SELECT advname, SUM(c) cg, SUM(b) act, ((b / c) * 100) p FROM (SELECT COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advid advertiserid FROM (SELECT DISTINCT msisdn msisdn, advid FROM ".$db.".subscriber WHERE subscriptionstartdate >= '".$startdate."' AND subscriptionstartdate <= '".$enddate."' AND (charging_mode = 'trial' )) a LEFT JOIN (SELECT DISTINCT msisdn msisdn, advid FROM ".$db.".subscriber WHERE subscriptionstartdate >= '".$startdate."' AND (charging_mode = 'act' OR charging_mode = 'ren' and amount>0)) b ON a.msisdn = b.msisdn GROUP BY a.advid) aa INNER JOIN advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid GROUP BY advname , p;
-				";	
-	}
-	
-	else{
-			$sql="SELECT 
-				advname, SUM(c) cg, SUM(b) act, ((b / c) * 100) p
-					FROM
-						(SELECT 
-							COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advertiserid
-						FROM
-							(SELECT DISTINCT
-							msisdn msisdn, advertiserid
-						FROM
-							".$db.".subscriber
-						WHERE
-							subscriptionstartdate >= '".$startdate."'
-								AND subscriptionstartdate <= '".$enddate."'
-								AND (charging_mode = 'cg')) a
-						LEFT JOIN (SELECT DISTINCT
-							msisdn msisdn, advertiserid
-						FROM
-							".$db.".subscriber
-						WHERE
-							subscriptionstartdate >= '".$startdate."'
-								AND (charging_mode = 'act'
-								OR charging_mode = 'ren')) b ON a.msisdn = b.msisdn
-						GROUP BY advertiserid) aa
-							INNER JOIN
-						advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid
-				GROUP BY advname , p;
-            ";
-	
-	}
-
-	
-
-	
-	
-	$res=$conn->query($sql);
-	
-	
-
-	
-}
+include("includes/check_session.php");
 ?>
+<?php include("includes/header.php"); ?>
+<?php include("includes/sidebar.php"); ?>
+<div class="hp-main">
+<?php include("includes/top_navigation.php"); ?>
+<div class="hp-content">
 
-	
-		<?php include("includes/header.php"); ?>
-		<?php include("includes/sidebar.php"); ?>
-		<?php include("includes/top_navigation.php"); ?>
-		
-			
-
-        <!-- page content -->
-        <div class="right_col" role="main" >
-          <div class="footer_down">
-
-            
-            
-
-            <div class="row">
-              <div class="col-md-12 col-xs-12">
-                <div class="x_panel">
-                  
-                  <div class="x_content">
-                    <br />
-                    <form class="form-horizontal form-label-left input_mask" method="post">
-					
-						
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Country
-						<select name="country" class="form-control select2_single" >
-							
-							
-							<option value="fashionbardb_etisalat" <?php if($country=='fashionbardb_etisalat'){$selected='selected';}else{$selected='';} echo $selected; ?>>UAE</option>
-							<option value="fashionbardb_omooredoo" <?php if($country=='fashionbardb_omooredoo'){$selected='selected';}else{$selected='';} echo $selected; ?>>OMAN OOREDOO</option>
-							<option value="fashionbardb_omantel" <?php if($country=='fashionbardb_omantel'){$selected='selected';}else{$selected='';} echo $selected; ?>>OMAN OMANTEL</option>
-							<option value="fashionbardb_kwoo" <?php if($country=='fashionbardb_kwoo'){$selected='selected';}else{$selected='';} echo $selected; ?>>KW</option>
-							<option value="fashionbardb_psjw" <?php if($country=='fashionbardb_psjw'){$selected='selected';}else{$selected='';} echo $selected; ?>>PALESTINE JAWWAL</option>
-							<option value="fashionbardb_psoo" <?php if($country=='fashionbardb_psoo'){$selected='selected';}else{$selected='';} echo $selected; ?>>PALESTINE OOREDOO</option>
-							<option value="gamebar_iqmw_api" <?php if($country=='gamebar_iqmw_api'){$selected='selected';}else{$selected='';} echo $selected; ?>>IRAQ</option>
-							<option value="fashionbardb_qatarooredoo" <?php if($country=='fashionbardb_qatarooredoo'){$selected='selected';}else{$selected='';} echo $selected; ?>>QA OOREDOO</option>
-							<option value="fashionbardb_qatarvodafone" <?php if($country=='fashionbardb_qatarvodafone'){$selected='selected';}else{$selected='';} echo $selected; ?>>QA Vodafone</option>
-							<option value="fashionbardb_safaricom_new" <?php if($country=='fashionbardb_safaricom_new'){$selected='selected';}else{$selected='';} echo $selected; ?>>KE Gamebar</option>
-							<option value="fashionbardb_safaricompkm" <?php if($country=='fashionbardb_safaricompkm'){$selected='selected';}else{$selected='';} echo $selected; ?>>KE 11players</option>
-							<!--<option value="pl" <?php if($country=='pl'){$selected='selected';}else{$selected='';} echo $selected; ?>>POLAND</option>
-							<option value="bh" <?php if($country=='bh'){$selected='selected';}else{$selected='';} echo $selected; ?>>BH</option> -->
-						</select>
-						</div>
-						
-						
-						
-					
-						
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> Start Date
-						<input class="date-picker form-control col-md-7 col-xs-12 birthday" name="start_date" value="<?php if($startdate!=''){echo date('d-m-Y',strtotime($startdate));}else{ echo date('d-m-Y');} ?>"  type="text">
-						</div>
-
-						<div class="col-md-2 col-sm-2 col-xs-12 form-group has-feedback"> End Date
-						<input class="date-picker form-control col-md-7 col-xs-12 birthday" name="end_date" value="<?php if($enddate!=''){echo date('d-m-Y',strtotime($enddate));}else{ echo date('d-m-Y');} ?>" type="text">
-						</div>
-
-						</br>
-						
-						<div class="col-md-2 col-sm-2 col-xs-12">
-						 
-						  <button type="submit" name="submit" class="btn btn-success">Submit</button>
-						</div>
-                      
-
-                    </form>
-                  </div>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-percent"></i> API Charging %</h4>
+    </div>
+    <div class="hp-card-body">
+        <div class="row">
+            <div class="col-md-3 col-sm-4 col-xs-12">
+                <div class="form-group">
+                    <label>Country / Database</label>
+                    <select id="ac-country" class="form-control">
+                        <option value="fashionbardb_etisalat">UAE</option>
+                        <option value="fashionbardb_omooredoo">OMAN OOREDOO</option>
+                        <option value="fashionbardb_omantel">OMAN OMANTEL</option>
+                        <option value="fashionbardb_kwoo">KW</option>
+                        <option value="fashionbardb_psjw">PALESTINE JAWWAL</option>
+                        <option value="fashionbardb_psoo">PALESTINE OOREDOO</option>
+                        <option value="gamebar_iqmw_api">IRAQ</option>
+                        <option value="fashionbardb_qatarooredoo">QA OOREDOO</option>
+                        <option value="fashionbardb_qatarvodafone">QA Vodafone</option>
+                        <option value="fashionbardb_safaricom_new">KE Gamebar</option>
+                        <option value="fashionbardb_safaricompkm">KE 11players</option>
+                    </select>
                 </div>
-				
-              
-              </div>
             </div>
-			
-			<div class="row">
-
-				<div class="col-md-12 col-sm-12 col-xs-12">
-					<div class="x_panel">
-						<div class="x_title">
-							
-							<ul class="nav navbar-right panel_toolbox">
-							  <li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
-							  </li>
-							  <li class="dropdown">
-								<a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false"><i class="fa fa-wrench"></i></a>
-								<ul class="dropdown-menu" role="menu">
-								  <li><a href="#">Settings 1</a>
-								  </li>
-								  <li><a href="#">Settings 2</a>
-								  </li>
-								</ul>
-							  </li>
-							  <li><a class="close-link"><i class="fa fa-close"></i></a>
-							  </li>
-							</ul>
-							<div class="clearfix"></div>
-						</div>
-						
-			<?php 	
-			if($count==1)
-			{ 
-			?>	
-			
-					  <div class="x_content"  style="overflow:auto;">
-						
-						<table id="datatable-buttons" class="table table-striped table-bordered">
-							<thead>
-								<tr>
-									<td><strong>Publisher</strong></td>								
-									<td><strong>CG</strong></td>								
-									<td><strong>Charged</strong></td>								
-									<td><strong>%</strong></td>								
-									
-								</tr>
-							</thead>
-
-
-							<tbody>
-								<?php 
-							
-								
-								$clicks_sum='';
-								$act_sum='';
-								$cg_sum='';
-								
-								
-								
-									while($row=$res->fetch())
-									{
-										
-								?>
-									<tr>
-										
-										<td  style="width:7%"><?php echo ucfirst($row['advname']);  ?></td>
-									
-										
-											
-										<td style="width:7%"><?php echo number_format($row['cg']); $cg_sum=$cg_sum+$row['cg']; ?></td>	
-										
-										<td style="width:7%"><?php echo number_format($row['act']); $act_sum=$act_sum+$row['act']; ?></td>	
-										
-										<td style="width:7%"><?php echo number_format(($row['act']/$row['cg'])*100,2);  ?>%</td>	
-										
-										
-									</tr>
-								
-								
-								
-								<?php
-									}
-								?>
-								
-								
-							</tbody>
-							
-							<thead>
-								<tr>
-									<td>Total</td>
-
-									<td><?php echo number_format($cg_sum); ?></td>
-								
-									<td><?php echo number_format($act_sum); ?></td>
-									
-									<td><?php echo number_format(($act_sum/$cg_sum)*100,2);  ?>%</td>	
-	
-								</tr>
-							</thead>
-								
-								
-						</table>
-					  </div>
-				
-			<?php
-			}
-			else
-			{}
-			?>
-					</div>
+            <div class="col-md-2 col-sm-4 col-xs-12">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input id="ac-start" type="text"
+                           class="date-picker form-control birthday"
+                           value="<?php echo date('d-m-Y'); ?>"
+                           placeholder="dd-mm-yyyy" readonly>
                 </div>
-			</div>
-			
-		</div>
-        <!-- /page content -->
+            </div>
+            <div class="col-md-2 col-sm-4 col-xs-12">
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input id="ac-end" type="text"
+                           class="date-picker form-control birthday"
+                           value="<?php echo date('d-m-Y'); ?>"
+                           placeholder="dd-mm-yyyy" readonly>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-4 col-xs-12">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button id="ac-btn" class="btn btn-primary btn-block">
+                        <i class="fa fa-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-       <?php
-	   include("includes/footer.php");
-		?>
-<script type="text/javascript">
- $(document).ready(function(){
+<div id="ac-results">
+    <div style="padding:60px;text-align:center;color:#a0aec0;">
+        <i class="fa fa-percent" style="font-size:40px;display:block;margin-bottom:12px;color:#e2e8f0;"></i>
+        Select a country and date range, then click Search.
+    </div>
+</div>
 
-   $("#operator").change(function(){
-		
-		var check1=$("#check1").val();
-		if(check1 == 0)
-		{
-			
-		}
-		else	
-		{
-			$(".sel").val('');
-			$("#t").hide();
-			$("#f").show();
-						
-		}
-       var operator = $("#operator").val();
-		var partner = $("#partner").val();
-        
-		//alert("ajax/find_advertiser.php?operator="+operator+"&partner="+partner);
-		$.ajax({
-			
-			
-            type: "GET",
-            url: "ajax/find_advertiser.php?operator="+operator+"&partner="+partner         
-			//url:"ajax/find_advertiser.php?operator=ais&partner=svmobi"
-        }).done(function(data){
-            $(".response").html(data);
-			 
+</div><!-- /.hp-content -->
+</div><!-- /.hp-main -->
+
+<?php include("includes/footer.php"); ?>
+
+<script>
+$(document).ready(function () {
+
+    function loadApiChargeData() {
+        var country = $('#ac-country').val();
+        var start   = $('#ac-start').val();
+        var end     = $('#ac-end').val();
+
+        if (!start || !end) {
+            alert('Please select both start and end dates.');
+            return;
+        }
+
+        $('#ac-btn').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Loading...');
+        $('#ac-results').html(
+            '<div style="padding:60px;text-align:center">' +
+            '<i class="fa fa-refresh" style="font-size:34px;color:#667eea;display:inline-block;animation:hp-spin 0.9s linear infinite"></i>' +
+            '<p style="color:#a0aec0;margin-top:14px;font-size:14px">Loading data...</p></div>'
+        );
+
+        $.post('ajax/handler.php', {
+            action    : 'apicharge_data',
+            country   : country,
+            start_date: start,
+            end_date  : end
+        })
+        .done(function (html) {
+            $('#ac-results').html(html);
+
+            if ($('#apicharge-table').length) {
+                $('#apicharge-table').DataTable({
+                    dom    : 'Bfrtip',
+                    buttons: [
+                        { extend: 'copy',  className: 'btn-sm' },
+                        { extend: 'csv',   className: 'btn-sm' },
+                        { extend: 'excel', className: 'btn-sm' },
+                        {
+                            extend     : 'pdfHtml5',
+                            className  : 'btn-sm',
+                            title      : 'API Charging % | SVMobi',
+                            orientation: 'portrait',
+                            pageSize   : 'A4',
+                            customize  : function (doc) {
+                                doc.pageMargins = [30, 40, 30, 30];
+                                doc.defaultStyle.fontSize        = 10;
+                                doc.defaultStyle.alignment       = 'center';
+                                doc.styles.tableHeader.fontSize  = 10;
+                                doc.styles.tableHeader.alignment = 'center';
+                                doc.styles.tableBodyOdd.fontSize  = 10;
+                                doc.styles.tableBodyEven.fontSize = 10;
+                                doc.content.forEach(function (node) {
+                                    if (node.table) {
+                                        var cols = node.table.body[0].length;
+                                        node.table.widths = Array(cols).fill('*');
+                                        node.table.body.forEach(function (row) {
+                                            row.forEach(function (cell) {
+                                                if (typeof cell === 'object') cell.alignment = 'center';
+                                            });
+                                        });
+                                    }
+                                });
+                            }
+                        },
+                        { extend: 'print', className: 'btn-sm' }
+                    ],
+                    order      : [[1, 'desc']],
+                    pageLength : 25
+                });
+            }
+        })
+        .fail(function () {
+            $('#ac-results').html(
+                '<div style="padding:40px;text-align:center;color:#e53e3e">' +
+                '<i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>' +
+                'Failed to load data. Please try again.</div>'
+            );
+        })
+        .always(function () {
+            $('#ac-btn').prop('disabled', false).html('<i class="fa fa-search"></i> Search');
         });
-    });
+    }
+
+    $('#ac-btn').on('click', loadApiChargeData);
 });
 </script>

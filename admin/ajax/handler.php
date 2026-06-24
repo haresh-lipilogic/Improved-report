@@ -24,6 +24,7 @@ switch ($action) {
     case 'promotion_data':           action_promotion_data($con);           break;
     case 'engagement_data':          action_engagement_data($con);          break;
     case 'api_report_data':          action_api_report_data();              break;
+    case 'apicharge_data':           action_apicharge_data();               break;
     case 'urlmake_operators':        action_urlmake_operators($con);        break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -1851,6 +1852,205 @@ function action_api_report_data(): void
                     <td><?php echo $pv_sum > 0 ? number_format(($act_sum / $pv_sum) * 100, 2) . '%' : '0.00%'; ?></td>
                     <td><?php echo number_format($cbs_sum); ?></td>
                     <td><?php echo $pv_sum > 0 ? number_format(($cbs_sum / $pv_sum) * 100, 2) . '%' : '0.00%'; ?></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+    <?php
+    $con->close();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: API Charging % data
+// Called by: apicharge.php  →  POST ajax/handler.php?action=apicharge_data
+// POST params: country (full db name), start_date (d-m-Y), end_date (d-m-Y)
+// Returns: HTML table
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_apicharge_data(): void
+{
+    // Own connection — same as connection_jay.php / action_api_report_data
+    $con = new mysqli(DB_PROD_HOST, DB_USER, DB_PASS, '', (int)DB_PROD_PORT);
+    if ($con->connect_errno) {
+        echo '<div style="padding:50px;text-align:center;color:#e53e3e">
+                <i class="fa fa-server" style="font-size:38px;display:block;margin-bottom:14px"></i>
+                <strong>Production database not reachable.</strong>
+                <div style="margin-top:8px;font-size:12px;color:#718096;">'
+                . htmlspecialchars($con->connect_error) .
+                '</div>
+              </div>';
+        return;
+    }
+
+    $allowed_dbs = [
+        'fashionbardb_etisalat',  'fashionbardb_omooredoo',
+        'fashionbardb_omantel',   'fashionbardb_kwoo',
+        'fashionbardb_psjw',      'fashionbardb_psoo',
+        'gamebar_iqmw_api',       'fashionbardb_qatarooredoo',
+        'fashionbardb_qatarvodafone', 'fashionbardb_safaricom_new',
+        'fashionbardb_safaricompkm',
+    ];
+
+    $db        = trim($_POST['country']    ?? '');
+    $start_raw = trim($_POST['start_date'] ?? date('d-m-Y'));
+    $end_raw   = trim($_POST['end_date']   ?? date('d-m-Y'));
+
+    if (!in_array($db, $allowed_dbs, true)) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Invalid country selection.</div>';
+        $con->close(); return;
+    }
+
+    $dtStart = DateTime::createFromFormat('d-m-Y', $start_raw);
+    $dtEnd   = DateTime::createFromFormat('d-m-Y', $end_raw);
+    if (!$dtStart || !$dtEnd) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Invalid date format. Please use the date picker.</div>';
+        $con->close(); return;
+    }
+
+    $startdate = $dtStart->format('Y-m-d') . ' 00:00:00';
+    $enddate   = $dtEnd->format('Y-m-d')   . ' 23:59:59';
+
+    if ($db === 'fashionbardb_psjw' || $db === 'fashionbardb_psoo') {
+        $sql = "
+            SELECT advname, SUM(c) AS cg, SUM(b) AS act
+            FROM (
+                SELECT COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advertiserid
+                FROM (
+                    SELECT DISTINCT msisdn, advertiserid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND subscriptionstartdate <= '{$enddate}'
+                      AND (charging_mode = 'act' OR charging_mode = 'low')
+                ) a
+                LEFT JOIN (
+                    SELECT DISTINCT msisdn, advertiserid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND (charging_mode = 'act' OR charging_mode = 'ren')
+                ) b ON a.msisdn = b.msisdn
+                GROUP BY advertiserid
+            ) aa
+            INNER JOIN advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid
+            GROUP BY advname
+        ";
+    } elseif ($db === 'gamebar_iqmw_api') {
+        $sql = "
+            SELECT advname, SUM(c) AS cg, SUM(b) AS act
+            FROM (
+                SELECT COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advid AS advertiserid
+                FROM (
+                    SELECT DISTINCT msisdn, advid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND subscriptionstartdate <= '{$enddate}'
+                      AND charging_mode = 'trial'
+                ) a
+                LEFT JOIN (
+                    SELECT DISTINCT msisdn, advid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND (charging_mode = 'act' OR (charging_mode = 'ren' AND amount > 0))
+                ) b ON a.msisdn = b.msisdn
+                GROUP BY a.advid
+            ) aa
+            INNER JOIN advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid
+            GROUP BY advname
+        ";
+    } else {
+        $sql = "
+            SELECT advname, SUM(c) AS cg, SUM(b) AS act
+            FROM (
+                SELECT COUNT(a.msisdn) c, COUNT(b.msisdn) b, a.advertiserid
+                FROM (
+                    SELECT DISTINCT msisdn, advertiserid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND subscriptionstartdate <= '{$enddate}'
+                      AND charging_mode = 'cg'
+                ) a
+                LEFT JOIN (
+                    SELECT DISTINCT msisdn, advertiserid
+                    FROM {$db}.subscriber
+                    WHERE subscriptionstartdate >= '{$startdate}'
+                      AND (charging_mode = 'act' OR charging_mode = 'ren')
+                ) b ON a.msisdn = b.msisdn
+                GROUP BY advertiserid
+            ) aa
+            INNER JOIN advertiserdb.advertiser ON advertiser.advertiserid = aa.advertiserid
+            GROUP BY advname
+        ";
+    }
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        $err = mysqli_error($con);
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                <strong>Query failed.</strong>
+                <div style="margin-top:10px;font-size:12px;color:#718096;word-break:break-all;">'
+                . htmlspecialchars($err) .
+                '</div>
+              </div>';
+        $con->close(); return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected period.</p>
+              </div>';
+        $con->close(); return;
+    }
+
+    $cg_sum = $act_sum = 0;
+    foreach ($rows as $r) {
+        $cg_sum  += (int)$r['cg'];
+        $act_sum += (int)$r['act'];
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-percent"></i> API Charging %
+            <small style="font-size:12px;font-weight:400;color:rgba(255,255,255,.7);margin-left:10px;">
+                <?php echo htmlspecialchars($db); ?> &middot;
+                <?php echo $dtStart->format('d M Y'); ?> – <?php echo $dtEnd->format('d M Y'); ?>
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0;overflow-x:auto;">
+        <table id="apicharge-table" class="table table-striped table-bordered" style="font-size:13px;margin:0;">
+            <thead style="background:#4a5568;color:#fff;text-align:center;">
+                <tr>
+                    <th style="text-align:center;">Publisher</th>
+                    <th style="text-align:center;">CG</th>
+                    <th style="text-align:center;">Charged</th>
+                    <th style="text-align:center;">%</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r):
+                    $cg  = (int)$r['cg'];
+                    $act = (int)$r['act'];
+                    $pct = $cg > 0 ? number_format(($act / $cg) * 100, 2) . '%' : '0.00%';
+                ?>
+                <tr>
+                    <td style="text-align:center;"><?php echo htmlspecialchars(ucfirst($r['advname'])); ?></td>
+                    <td style="text-align:center;"><?php echo number_format($cg); ?></td>
+                    <td style="text-align:center;"><?php echo number_format($act); ?></td>
+                    <td style="text-align:center;"><?php echo $pct; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:bold;background:#4a5568;color:#fff;text-align:center;">
+                    <td>Total</td>
+                    <td><?php echo number_format($cg_sum); ?></td>
+                    <td><?php echo number_format($act_sum); ?></td>
+                    <td><?php echo $cg_sum > 0 ? number_format(($act_sum / $cg_sum) * 100, 2) . '%' : '0.00%'; ?></td>
                 </tr>
             </tfoot>
         </table>
