@@ -112,21 +112,23 @@
     }
     .hp-nav li.has-submenu.open .hp-submenu { max-height: 400px; }
     .hp-submenu li a {
-      padding: 8px 20px 8px 48px !important;
+      padding: 8px 20px 8px 36px !important;
       font-size: 12.5px !important; color: #8898aa !important;
       border-left: 3px solid transparent !important;
       white-space: nowrap; overflow: hidden;
       display: flex; align-items: center; gap: 8px;
     }
-    .hp-submenu li a::before {
-      content: ''; width: 5px; height: 5px; border-radius: 50%;
-      background: #667eea; flex-shrink: 0; display: block;
+    .hp-submenu li a .fa {
+      font-size: 12px !important; width: 14px; text-align: center;
+      color: #667eea; flex-shrink: 0;
     }
     .hp-submenu li a:hover { color: #e2e8f0 !important; background: rgba(102,126,234,.08) !important; }
+    .hp-submenu li a:hover .fa { color: #e2e8f0; }
     .hp-submenu li.active a {
       color: #fff !important; background: rgba(102,126,234,.14) !important;
       border-left-color: #667eea !important;
     }
+    .hp-submenu li.active a .fa { color: #fff; }
 
     /* ── Top navigation bar ──────────────────────────────────────── */
     .hp-topnav {

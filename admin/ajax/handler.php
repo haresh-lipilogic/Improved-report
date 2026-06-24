@@ -22,6 +22,21 @@ switch ($action) {
     case 'contest_data':             action_contest_data($con);             break;
     case 'contest_charging_data':    action_contest_charging_data($con);    break;
     case 'promotion_data':           action_promotion_data($con);           break;
+    case 'engagement_data':          action_engagement_data($con);          break;
+    case 'api_report_data':
+        if ($con_prod) {
+            action_api_report_data($con_prod);
+        } else {
+            echo '<div style="padding:50px;text-align:center;color:#e53e3e">
+                    <i class="fa fa-server" style="font-size:38px;display:block;margin-bottom:14px"></i>
+                    <strong>Production database not reachable.</strong><br>
+                    <span style="color:#718096;font-size:13px;margin-top:8px;display:block;">
+                        This report requires a direct connection to the production server.<br>
+                        Please access it from the live server.
+                    </span>
+                  </div>';
+        }
+        break;
     case 'urlmake_operators':        action_urlmake_operators($con);        break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -1578,6 +1593,382 @@ function action_contest_charging_data(mysqli $con): void
                     <td><?php echo number_format($oneshot_sum); ?></td>
                     <td><?php echo number_format($oneshotamt_sum, 2); ?></td>
                     <td><?php echo number_format($total_amt, 2); ?></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: API Report data
+// Called by: api.php  →  POST ajax/handler.php?action=api_report_data
+// POST params: country, advpb (advertiser|publisher), start_date (d-m-Y), end_date (d-m-Y)
+// Returns: HTML table
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_api_report_data(mysqli $con): void
+{
+    $allowed_countries = ['sa','ae','om','kw','ps','iq','qa','pl','bh'];
+    $allowed_advpb     = ['advertiser','publisher'];
+
+    $country   = trim($_POST['country']    ?? 'sa');
+    $advpb     = trim($_POST['advpb']      ?? 'advertiser');
+    $start_raw = trim($_POST['start_date'] ?? date('d-m-Y'));
+    $end_raw   = trim($_POST['end_date']   ?? date('d-m-Y'));
+
+    if (!in_array($country, $allowed_countries, true)) $country = 'sa';
+    if (!in_array($advpb,   $allowed_advpb,     true)) $advpb   = 'advertiser';
+
+    $db = 'fashionbardb_airg_' . $country;
+
+    $dtStart = DateTime::createFromFormat('d-m-Y', $start_raw);
+    $dtEnd   = DateTime::createFromFormat('d-m-Y', $end_raw);
+    if (!$dtStart || !$dtEnd) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Invalid date format. Please use the date picker.</div>';
+        return;
+    }
+
+    $startdate = $dtStart->format('Y-m-d') . ' 00:00:00';
+    $enddate   = $dtEnd->format('Y-m-d')   . ' 23:59:59';
+
+    $union_cols_adv = "dt, operator, advertiserid, partner";
+    $union_cols_pub = "dt, operator, advertiserid";
+
+    if ($advpb === 'advertiser') {
+        $gcols = "dt, operator, advertiserid, partner";
+        $sql = "
+            SELECT dt, SUM(clicks) AS clicks, SUM(uniq) AS uniq, SUM(pg) AS pg,
+                   SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
+                   operator, advname, partner
+            FROM (
+                SELECT dt, SUM(clicks) AS clicks, SUM(uniq) AS uniq, SUM(pg) AS pg,
+                       SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
+                       operator, advertiserid, partner
+                FROM (
+                    SELECT COUNT(DISTINCT clickid) AS clicks,0 AS uniq,0 AS pg,0 AS pv,0 AS act,0 AS cbs,
+                           DATE(accesstime) AS dt, operator, advertiserid, partner
+                    FROM {$db}.userlog
+                    WHERE accesstime >= '{$startdate}' AND accesstime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid, partner
+                    UNION ALL
+                    SELECT 0,COUNT(DISTINCT msisdn),0,0,0,0,
+                           DATE(pindatetime), operator, advertiserid, partner
+                    FROM {$db}.requestpin
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid, partner
+                    UNION ALL
+                    SELECT 0,0,COUNT(DISTINCT msisdn),0,0,0,
+                           DATE(pindatetime), operator, advertiserid, partner
+                    FROM {$db}.requestpin
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                      AND (status = 'success' OR status = 'SUCCESS')
+                    GROUP BY dt, operator, advertiserid, partner
+                    UNION ALL
+                    SELECT 0,0,0,COUNT(DISTINCT msisdn),0,0,
+                           DATE(pindatetime), operator, advertiserid, partner
+                    FROM {$db}.pinverify
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid, partner
+                    UNION ALL
+                    SELECT 0,0,0,0,COUNT(DISTINCT msisdn),0,
+                           DATE(pindatetime), operator, advertiserid, partner
+                    FROM {$db}.pinverify
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                      AND (status = 'success' OR status = 'pending')
+                    GROUP BY dt, operator, advertiserid, partner
+                    UNION ALL
+                    SELECT 0,0,0,0,0,COUNT(DISTINCT msisdn),
+                           DATE(advertdatetime), operator, advertiserid, partner
+                    FROM {$db}.advertcallback
+                    WHERE advertdatetime >= '{$startdate}' AND advertdatetime <= '{$enddate}'
+                      AND advertresponse != 'stop' AND action = 'cg'
+                    GROUP BY dt, operator, advertiserid, partner
+                ) a
+                GROUP BY dt, operator, advertiserid, partner
+            ) a
+            INNER JOIN advertiserdb.advertiser ON a.advertiserid = advertiser.advertiserid
+            GROUP BY dt, operator, advname, partner
+            ORDER BY dt ASC
+        ";
+    } else {
+        $sql = "
+            SELECT dt, SUM(clicks) AS clicks, SUM(uniq) AS uniq, SUM(pg) AS pg,
+                   SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
+                   operator, advname
+            FROM (
+                SELECT dt, SUM(clicks) AS clicks, SUM(uniq) AS uniq, SUM(pg) AS pg,
+                       SUM(pv) AS pv, SUM(act) AS act, SUM(cbs) AS cbs,
+                       operator, advertiserid
+                FROM (
+                    SELECT COUNT(DISTINCT clickid) AS clicks,0 AS uniq,0 AS pg,0 AS pv,0 AS act,0 AS cbs,
+                           DATE(accesstime) AS dt, operator, advertiserid
+                    FROM {$db}.userlog
+                    WHERE accesstime >= '{$startdate}' AND accesstime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid
+                    UNION ALL
+                    SELECT 0,COUNT(DISTINCT msisdn),0,0,0,0,
+                           DATE(pindatetime), operator, advertiserid
+                    FROM {$db}.requestpin
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid
+                    UNION ALL
+                    SELECT 0,0,COUNT(DISTINCT msisdn),0,0,0,
+                           DATE(pindatetime), operator, advertiserid
+                    FROM {$db}.requestpin
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                      AND (status = 'success' OR status = 'SUCCESS')
+                    GROUP BY dt, operator, advertiserid
+                    UNION ALL
+                    SELECT 0,0,0,COUNT(DISTINCT msisdn),0,0,
+                           DATE(pindatetime), operator, advertiserid
+                    FROM {$db}.pinverify
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                    GROUP BY dt, operator, advertiserid
+                    UNION ALL
+                    SELECT 0,0,0,0,COUNT(DISTINCT msisdn),0,
+                           DATE(pindatetime), operator, advertiserid
+                    FROM {$db}.pinverify
+                    WHERE pindatetime >= '{$startdate}' AND pindatetime <= '{$enddate}'
+                      AND (status = 'success' OR status = 'pending')
+                    GROUP BY dt, operator, advertiserid
+                    UNION ALL
+                    SELECT 0,0,0,0,0,COUNT(DISTINCT msisdn),
+                           DATE(advertdatetime), operator, advertiserid
+                    FROM {$db}.advertcallback
+                    WHERE advertdatetime >= '{$startdate}' AND advertdatetime <= '{$enddate}'
+                      AND advertresponse != 'stop' AND action = 'cg'
+                    GROUP BY dt, operator, advertiserid
+                ) a
+                GROUP BY dt, operator, advertiserid
+            ) a
+            INNER JOIN advertiserdb.advertiser ON a.advertiserid = advertiser.advertiserid
+            GROUP BY dt, operator, advname
+            ORDER BY dt ASC
+        ";
+    }
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Query failed. Please try again.
+              </div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected period.</p>
+              </div>';
+        return;
+    }
+
+    $clicks_sum = $uniq_sum = $pg_sum = $pv_sum = $act_sum = $cbs_sum = 0;
+    foreach ($rows as $r) {
+        $clicks_sum += (int)$r['clicks'];
+        $uniq_sum   += (int)$r['uniq'];
+        $pg_sum     += (int)$r['pg'];
+        $pv_sum     += (int)$r['pv'];
+        $act_sum    += (int)$r['act'];
+        $cbs_sum    += (int)$r['cbs'];
+    }
+    $is_adv = ($advpb === 'advertiser');
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-plug"></i> API Report
+            <small style="font-size:12px;font-weight:400;color:rgba(255,255,255,.7);margin-left:10px;">
+                <?php echo strtoupper(htmlspecialchars($country)); ?> &middot;
+                <?php echo ucfirst(htmlspecialchars($advpb)); ?> &middot;
+                <?php echo $dtStart->format('d M Y'); ?> – <?php echo $dtEnd->format('d M Y'); ?>
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0;overflow-x:auto;">
+        <table id="api-table" class="table table-striped table-bordered" style="font-size:12px;margin:0;">
+            <thead style="background:#4a5568;color:#fff;text-align:center;">
+                <tr>
+                    <th style="text-align:center;">Date</th>
+                    <th style="text-align:center;">Publisher</th>
+                    <?php if ($is_adv): ?><th style="text-align:center;">Advertiser</th><?php endif; ?>
+                    <th style="text-align:center;">Clicks</th>
+                    <th style="text-align:center;">UClicks</th>
+                    <th style="text-align:center;">PG</th>
+                    <th style="text-align:center;">PV</th>
+                    <th style="text-align:center;">Operator</th>
+                    <th style="text-align:center;">Activation</th>
+                    <th style="text-align:center;">ACR%</th>
+                    <th style="text-align:center;">CBS</th>
+                    <th style="text-align:center;">CR%</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r):
+                    $pv  = (int)$r['pv'];
+                    $act = (int)$r['act'];
+                    $cbs = (int)$r['cbs'];
+                    $acr = $pv > 0 ? number_format(($act / $pv) * 100, 2) . '%' : '0.00%';
+                    $cr  = $pv > 0 ? number_format(($cbs / $pv) * 100, 2) . '%' : '0.00%';
+                ?>
+                <tr>
+                    <td style="text-align:center;"><?php echo date('d-m-Y', strtotime($r['dt'])); ?></td>
+                    <td style="text-align:center;"><?php echo htmlspecialchars(ucfirst($r['advname'])); ?></td>
+                    <?php if ($is_adv): ?>
+                    <td style="text-align:center;"><?php echo htmlspecialchars(ucfirst($r['partner'] ?? '')); ?></td>
+                    <?php endif; ?>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['clicks']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['uniq']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['pg']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format($pv); ?></td>
+                    <td style="text-align:center;"><?php echo htmlspecialchars($r['operator']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format($act); ?></td>
+                    <td style="text-align:center;"><?php echo $acr; ?></td>
+                    <td style="text-align:center;"><?php echo number_format($cbs); ?></td>
+                    <td style="text-align:center;"><?php echo $cr; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:bold;background:#4a5568;color:#fff;text-align:center;">
+                    <td>Total</td>
+                    <td></td>
+                    <?php if ($is_adv): ?><td></td><?php endif; ?>
+                    <td><?php echo number_format($clicks_sum); ?></td>
+                    <td><?php echo number_format($uniq_sum); ?></td>
+                    <td><?php echo number_format($pg_sum); ?></td>
+                    <td><?php echo number_format($pv_sum); ?></td>
+                    <td></td>
+                    <td><?php echo number_format($act_sum); ?></td>
+                    <td><?php echo $pv_sum > 0 ? number_format(($act_sum / $pv_sum) * 100, 2) . '%' : '0.00%'; ?></td>
+                    <td><?php echo number_format($cbs_sum); ?></td>
+                    <td><?php echo $pv_sum > 0 ? number_format(($cbs_sum / $pv_sum) * 100, 2) . '%' : '0.00%'; ?></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Engagement Activity data
+// Called by: engagement.php  →  POST ajax/handler.php?action=engagement_data
+// POST params: country, start_date (d-m-Y), end_date (d-m-Y)
+// Returns: HTML table
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_engagement_data(mysqli $con): void
+{
+    $country   = trim($_POST['country']    ?? 'qa');
+    $start_raw = trim($_POST['start_date'] ?? date('d-m-Y'));
+    $end_raw   = trim($_POST['end_date']   ?? date('d-m-Y'));
+
+    $db = ($country === 'bh') ? 'contestdb_bh' : 'contestdb_qaoo';
+
+    $dtStart = DateTime::createFromFormat('d-m-Y', $start_raw);
+    $dtEnd   = DateTime::createFromFormat('d-m-Y', $end_raw);
+    if (!$dtStart || !$dtEnd) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">Invalid date format. Please use the date picker.</div>';
+        return;
+    }
+
+    $startdate = $dtStart->format('Y-m-d') . ' 00:00:00';
+    $enddate   = $dtEnd->format('Y-m-d')   . ' 23:59:59';
+
+    $sql = "
+        SELECT SUM(promo) AS promo, SUM(act) AS act, dt
+        FROM (
+            SELECT COUNT(msisdn) AS promo, 0 AS act,
+                   DATE(mtdatetime) AS dt
+            FROM {$db}.mt
+            WHERE status = 'success'
+              AND response LIKE '%ENGAGEMENT%'
+              AND mtdatetime >= '{$startdate}'
+              AND mtdatetime <= '{$enddate}'
+            GROUP BY dt
+            UNION ALL
+            SELECT 0 AS promo, COUNT(msisdn) AS act,
+                   DATE(answerdatetime) AS dt
+            FROM {$db}.contestlog
+            WHERE engagement = 'engagement'
+              AND result != ''
+              AND answerdatetime >= '{$startdate}'
+              AND answerdatetime <= '{$enddate}'
+            GROUP BY dt
+        ) a
+        GROUP BY dt
+        ORDER BY dt ASC
+    ";
+
+    $res = mysqli_query($con, $sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>
+                Query failed. Please try again.
+              </div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($res)) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No records found for the selected period.</p>
+              </div>';
+        return;
+    }
+
+    $promo_sum  = $act_sum = 0;
+    $amount_sum = 0.0;
+    foreach ($rows as $r) {
+        $promo_sum  += (int)$r['promo'];
+        $act_sum    += (int)$r['act'];
+        $amount_sum += (int)$r['act'] * 0.20;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-comments"></i> Engagement Activity
+            <small style="font-size:12px;font-weight:400;color:rgba(255,255,255,.7);margin-left:10px;">
+                <?php echo strtoupper(htmlspecialchars($country)); ?> &middot;
+                <?php echo $dtStart->format('d M Y'); ?> – <?php echo $dtEnd->format('d M Y'); ?>
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="padding:0;overflow-x:auto;">
+        <table id="engage-table" class="table table-striped table-bordered" style="font-size:13px;margin:0;">
+            <thead style="background:#4a5568;color:#fff;text-align:center;">
+                <tr>
+                    <th style="text-align:center;">Date</th>
+                    <th style="text-align:center;">Engagement</th>
+                    <th style="text-align:center;">SMS Played</th>
+                    <th style="text-align:center;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $r): ?>
+                <tr>
+                    <td style="text-align:center;"><?php echo htmlspecialchars($r['dt']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['promo']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['act']); ?></td>
+                    <td style="text-align:center;"><?php echo number_format((int)$r['act'] * 0.20, 2); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:bold;background:#4a5568;color:#fff;text-align:center;">
+                    <td>Total</td>
+                    <td><?php echo number_format($promo_sum); ?></td>
+                    <td><?php echo number_format($act_sum); ?></td>
+                    <td><?php echo number_format($amount_sum, 2); ?></td>
                 </tr>
             </tfoot>
         </table>

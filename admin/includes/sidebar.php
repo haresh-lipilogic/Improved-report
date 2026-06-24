@@ -49,28 +49,40 @@
       <a href="urlmake.php"><i class="fa fa-link"></i> Advertiser Urls</a>
     </li>
     <?php
-      $contestPages = ['contest.php','contest_charging.php','promotional_activity.php','engagement_activity.php'];
+      $contestPages = ['contest.php','contest_charging.php','promotion.php','engagement.php'];
       $contestOpen  = in_array($currentPage, $contestPages) ? 'open' : '';
     ?>
     <li class="has-submenu <?php echo $contestOpen; ?>">
       <a href="#"><i class="fa fa-trophy"></i> Contest</a>
       <ul class="hp-submenu">
-        <li class="<?php echo $currentPage === 'contest.php'           ? 'active' : ''; ?>">
-          <a href="contest.php">Leaderboard</a>
+        <li class="<?php echo $currentPage === 'contest.php'          ? 'active' : ''; ?>">
+          <a href="contest.php"><i class="fa fa-file-text-o"></i> Leaderboard</a>
         </li>
-        <li class="<?php echo $currentPage === 'contest_charging.php'       ? 'active' : ''; ?>">
-          <a href="contest_charging.php">Charging Report</a>
+        <li class="<?php echo $currentPage === 'contest_charging.php' ? 'active' : ''; ?>">
+          <a href="contest_charging.php"><i class="fa fa-file-text-o"></i> Charging Report</a>
         </li>
-        <li class="<?php echo $currentPage === 'promotion.php'  ? 'active' : ''; ?>">
-          <a href="promotion.php">Promotional Activity</a>
+        <li class="<?php echo $currentPage === 'promotion.php'        ? 'active' : ''; ?>">
+          <a href="promotion.php"><i class="fa fa-file-text-o"></i> Promotional Activity</a>
         </li>
-        <li class="<?php echo $currentPage === 'engagement_activity.php'   ? 'active' : ''; ?>">
-          <a href="engagement_activity.php">Engagement Activity</a>
+        <li class="<?php echo $currentPage === 'engagement.php'       ? 'active' : ''; ?>">
+          <a href="engagement.php"><i class="fa fa-file-text-o"></i> Engagement Activity</a>
         </li>
       </ul>
     </li>
-    <li class="<?php echo $currentPage === 'api.php' ? 'active' : ''; ?>">
-      <a href="api.php"><i class="fa fa-plug"></i> API</a>
+    <?php
+      $apiPages = ['api.php','apicharge.php'];
+      $apiOpen  = in_array($currentPage, $apiPages) ? 'open' : '';
+    ?>
+    <li class="has-submenu <?php echo $apiOpen; ?>">
+      <a href="#"><i class="fa fa-plug"></i> API</a>
+      <ul class="hp-submenu">
+        <li class="<?php echo $currentPage === 'api.php'       ? 'active' : ''; ?>">
+          <a href="api.php"><i class="fa fa-file-text-o"></i> API Report</a>
+        </li>
+        <li class="<?php echo $currentPage === 'apicharge.php' ? 'active' : ''; ?>">
+          <a href="apicharge.php"><i class="fa fa-file-text-o"></i> API Charging %</a>
+        </li>
+      </ul>
     </li>
     <li class="<?php echo $currentPage === 'other_reports.php' ? 'active' : ''; ?>">
       <a href="other_reports.php"><i class="fa fa-folder-open-o"></i> Other Reports</a>
