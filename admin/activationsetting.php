@@ -1,307 +1,156 @@
 <?php
-include("includes/check_session.php");
-//include("includes/connection.php");
+ini_set('max_execution_time', 6000);
 date_default_timezone_set("Asia/Calcutta");
-//error_reporting(0);
-$con=new mysqli("10.34.240.214","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster 2
-$con3=new mysqli("10.34.240.214","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster 2
-//$con1=new mysqli("10.125.0.50","webserveruser","K&dN&r4a8N@du0") or die(mysqli_error());//cluster1
-$con1=$con;
-$start_date='';
-$end_date='';
-$operator='';
-$product='';
-$count=0;
-$cc=0;
+error_reporting(0);
 
-$count=1;
-$operator=$_POST['operator'];
-$product=$_POST['product'];
-$date1=date('Y-m-d');
+$pageTitle = 'Activation Report Setting';
+$pageIcon  = 'fa-toggle-on';
 
-
-
-
-	   $query="select * from gamebardb_vodafone_qatar_report.activationsetting  order by Country asc";
-	$res=mysqli_query($con,$query) or die(mysqli_error());
-	
-
-
-
+include("includes/check_session.php");
 ?>
 <?php include("includes/header.php"); ?>
-		<?php include("includes/sidebar.php"); ?>
-		<?php include("includes/top_navigation.php"); ?>
-            
-			
+<?php include("includes/sidebar.php"); ?>
+<div class="hp-main">
+<?php include("includes/top_navigation.php"); ?>
+<div class="hp-content">
 
-        <!-- page content -->
-        <div class="right_col" role="main" >
-          <div class="footer_down">
-
-            
-            
-
-           
-			
-			<div class="row">
-
-				<div class="col-md-12 col-sm-12 col-xs-12">
-					<div class="x_panel">
-						<div class="x_title">
-							<h2>Open Or Close Activation Report Country <small></small></h2>
-							<ul class="nav navbar-right panel_toolbox">
-							  <li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
-							  </li>
-							  <li class="dropdown">
-								<a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false"><i class="fa fa-wrench"></i></a>
-								<ul class="dropdown-menu" role="menu">
-								  <li><a href="#">Settings 1</a>
-								  </li>
-								  <li><a href="#">Settings 2</a>
-								  </li>
-								</ul>
-							  </li>
-							  <li><a class="close-link"><i class="fa fa-close"></i></a>
-							  </li>
-							</ul>
-							<div class="clearfix"></div>
-						</div>
-						
-			<?php 
-			//echo $sql;
-
-			if($count==1)
-			{
-				$k=$l=0;
-				
-			?>	
-			
-					  <div class="x_content"  style="overflow:auto;">
-						
-						<table id="datatable-buttons" class="table table-striped table-bordered">
-							<thead>
-								<tr>
-									<td><strong>Product</strong></td>
-									<td><strong>Country</strong></td>
-									<td><strong>Action</strong></td><!--uniq-->
-									
-									
-									
-									
-									
-								</tr>
-							</thead>
-
-
-							<tbody>
-							<tr>
-							
-								<?php
-								
-									
-									while($row1=mysqli_fetch_array($res))
-									{
-										?>
-										<td><?php echo $row1['Product'];  ?></td>
-										<td><?php echo $row1['Country'];?></td>
-										
-										
-									
-										
-										<td><select onchange="stop_callback(this.value,'<?php echo $row1['Product']; ?>','<?php echo $row1['Country']; ?>')">
-										
-										<option <?php if($row1['Action']=='Open'){echo "selected";}?> value="Open">Open</option>
-										<option <?php if($row1['Action']=='Close'){echo "selected";}?> value="Close">Close</option>
-										
-										</select>
-										
-										
-										</td>
-										
-										
-										
-										
-									
-										
-										
-										
-										
-										
-										
-										
-									</tr>
-								
-								
-								
-								<?php
-									}
-								
-								
-							
-							
-						?>		
-								
-						</table>
-					  </div>
-				<!--<div id="advertiser"></div>-->
-			
-							</tbody>
-							</table>
-					  </div>
-			
-			<?php	
-			}
-			else{
-				
-			}
-			?>
-					</div>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-toggle-on"></i> Activation Report Setting</h4>
+    </div>
+    <div class="hp-card-body">
+        <div class="row">
+            <div class="col-md-3 col-sm-4 col-xs-12">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button id="as-btn" class="btn btn-primary btn-block">
+                        <i class="fa fa-refresh"></i> Refresh Settings
+                    </button>
                 </div>
-			</div>
-			
-		</div>
-        <!-- /page content -->
-		
-       <?php
-	   include("includes/footer.php");
-		?>
-		
-<script type="text/javascript">
- $(document).ready(function(){
+            </div>
+        </div>
+    </div>
+</div>
 
-   $("#product").change(function(){
-		
-		var check1=$("#check1").val();
-		if(check1 == 0)
-		{
-			
-		}
-		else	
-		{
-			$(".sel1").val('');
-			$("#t1").hide();
-			$("#f1").show();
-						
-		}
-       
-		var product = $("#product").val();
-        $.ajax({
-            type: "GET",
-            url: "ajax/findoperatormainreport.php?product="+product         
-			
-        }).done(function(data){
-			
-			
-            $(".response1").html(data);
-			 
+<div id="as-results">
+    <div style="padding:60px;text-align:center">
+        <i class="fa fa-refresh" style="font-size:34px;color:#667eea;display:inline-block;animation:hp-spin 0.9s linear infinite"></i>
+        <p style="color:#a0aec0;margin-top:14px;font-size:14px">Loading settings...</p>
+    </div>
+</div>
+
+</div><!-- /.hp-content -->
+</div><!-- /.hp-main -->
+
+<?php include("includes/footer.php"); ?>
+
+<script>
+$(document).ready(function () {
+
+    function loadSettings() {
+        $('#as-btn').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Loading...');
+        $('#as-results').html(
+            '<div style="padding:60px;text-align:center">' +
+            '<i class="fa fa-refresh" style="font-size:34px;color:#667eea;display:inline-block;animation:hp-spin 0.9s linear infinite"></i>' +
+            '<p style="color:#a0aec0;margin-top:14px;font-size:14px">Loading settings...</p></div>'
+        );
+
+        $.post('ajax/handler.php', { action: 'activation_setting_load' })
+        .done(function (html) {
+            $('#as-results').html(html);
+
+            if ($('#as-table').length) {
+                $('#as-table').DataTable({
+                    dom      : 'Bfrtip',
+                    buttons  : [
+                        { extend: 'copy',  className: 'btn-sm' },
+                        { extend: 'csv',   className: 'btn-sm' },
+                        { extend: 'excel', className: 'btn-sm' },
+                        {
+                            extend     : 'pdfHtml5',
+                            className  : 'btn-sm',
+                            title      : 'Activation Report Setting | SVMobi',
+                            orientation: 'portrait',
+                            pageSize   : 'A4',
+                            customize  : function (doc) {
+                                doc.pageMargins = [30, 40, 30, 30];
+                                doc.defaultStyle.fontSize        = 10;
+                                doc.defaultStyle.alignment       = 'center';
+                                doc.styles.tableHeader.fontSize  = 10;
+                                doc.styles.tableHeader.alignment = 'center';
+                                doc.styles.tableBodyOdd.fontSize  = 10;
+                                doc.styles.tableBodyEven.fontSize = 10;
+                                doc.content.forEach(function (node) {
+                                    if (node.table) {
+                                        var cols = node.table.body[0].length;
+                                        node.table.widths = Array(cols).fill('*');
+                                        node.table.body.forEach(function (row) {
+                                            row.forEach(function (cell) {
+                                                if (typeof cell === 'object') cell.alignment = 'center';
+                                            });
+                                        });
+                                    }
+                                });
+                            }
+                        },
+                        { extend: 'print', className: 'btn-sm' }
+                    ],
+                    order      : [[1, 'asc']],
+                    pageLength : 50
+                });
+            }
+        })
+        .fail(function () {
+            $('#as-results').html(
+                '<div style="padding:40px;text-align:center;color:#e53e3e">' +
+                '<i class="fa fa-exclamation-circle" style="font-size:32px;display:block;margin-bottom:10px"></i>' +
+                'Failed to load settings. Please try again.</div>'
+            );
+        })
+        .always(function () {
+            $('#as-btn').prop('disabled', false).html('<i class="fa fa-refresh"></i> Refresh Settings');
+        });
+    }
+
+    // Auto-load on page open
+    loadSettings();
+
+    $('#as-btn').on('click', loadSettings);
+
+    // Handle Action dropdown change (event delegation — survives DataTables re-render)
+    $(document).on('change', '.action-select', function () {
+        var $sel    = $(this);
+        var act     = $sel.val();
+        var product = $sel.data('product');
+        var country = $sel.data('country');
+        var $status = $('.as-status-' + product + '-' + country);
+
+        $sel.prop('disabled', true);
+
+        $.post('ajax/handler.php', {
+            action : 'activation_setting_update',
+            act    : act,
+            product: product,
+            country: country
+        })
+        .done(function (res) {
+            if (res && res.ok) {
+                var badge = act === 'Open'
+                    ? '<span class="label label-success">Open</span>'
+                    : '<span class="label label-danger">Closed</span>';
+                $status.html(badge);
+            } else {
+                alert('Update failed: ' + (res.msg || 'Unknown error'));
+                // Revert dropdown
+                loadSettings();
+            }
+        })
+        .fail(function () {
+            alert('Network error. Please try again.');
+        })
+        .always(function () {
+            $sel.prop('disabled', false);
         });
     });
 });
-</script>	
-<script>
- function getdata(startdate,enddate,db,dblog,advertiser,parameter){
-
-  
-  if (window.XMLHttpRequest) {
-            // code for IE7+, Firefox, Chrome, Opera, Safari
-            xmlhttp = new XMLHttpRequest();
-        } else {
-            // code for IE6, IE5
-            xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
-        }
-        xmlhttp.onreadystatechange = function() {
-            if (this.readyState == 4 && this.status == 200) {
-                document.getElementById("advertiser").innerHTML = this.responseText;
-            }
-        };
-        xmlhttp.open("GET","mehul_ajax/mehul_ajax.php?startdate="+startdate+"&enddate="+enddate+"&db="+db+"&dblog="+dblog+"&advertiser="+advertiser+"&parameter="+parameter,true);
-        xmlhttp.send();
-    }
- 
- </script>   
-<script>
-	/*function myFunction() {
-    var x = document.getElementById("product").value;
-	
-	//document.getElementById("demo").innerHTML = "You selected: " + x;
-    if(x =='Hotshots')
-	{
-		document.getElementById('operator').options.length = 0;
-		var select = document.getElementById("operator");
-		select.options[select.options.length] = new Option('--operator--', '');
-		select.options[select.options.length] = new Option('Vodafone_Qatar', 'Vodafone_Qatar');
-		select.options[select.options.length] = new Option('Idea', 'Idea');
-		select.options[select.options.length] = new Option('Airtel', 'Airtel');
-	}
-	else if(x =='gamebar')
-	{
-		document.getElementById('operator').options.length = 0;
-		var select = document.getElementById("operator");
-		select.options[select.options.length] = new Option('--operator--', '');
-		select.options[select.options.length] = new Option('Vodafone_Qatar', 'Vodafone_Qatar');
-		select.options[select.options.length] = new Option('Idea', 'Idea');
-		//select.options[select.options.length] = new Option('Airtel', 'Airtel');
-		select.options[select.options.length] = new Option('Azharbeizan', 'Azharbeizan');
-		//select.options[select.options.length] = new Option('etisalat', 'etisalat');
-		//select.options[select.options.length] = new Option('ooredoo_qatar', 'ooredoo_qatar');
-	}
-	
-	//document.getElementById("demo").innerHTML = "You selected: " + x;
-	}
-	
-	*/
-	</script> 
-<script type="text/javascript">
-
-function stop_callback(action,product,country)
-{
-	
-	//alert(action);
-	//alert(product);
-	//alert(country);
-	
-//alert("ajax/make.php?callbacktype=act_stop&operator="+operator+"&product="+product+"&callbackstop_perc="+callbackstop_perc+"&advertiserid="+advertiserid+"&db="+database);
-//alert(advertiserid);		
-	$.ajax({
-            type: "GET",
-            url: "ajax/activationsetting.php?action="+action+"&product="+product+"&country="+country
-			});			
-			
-			
-}
-
-</script> 	
-
-<script type="text/javascript">
-
-function stop_callback1(callbackstop_perc,advertiserid,operator,product,database,table,condition)
-{
-//alert();
-		
-		$.ajax({
-            type: "GET",
-            url: "ajax/make.php?callbacktype=spo_stop&operator="+operator+"&product="+product+"&callbackstop_perc="+callbackstop_perc+"&advertiserid="+advertiserid+"&db="+database+"&advtable="+table+"&condition="+condition        
-			});			
-			
-			
-}
-
-</script> 	
-
-
-<script type="text/javascript">
-
-function stop_callback2(callbackstop_perc,advertiserid,operator,product,database,table,condition)
-{
-
-		
-		$.ajax({
-            type: "GET",
-            url: "ajax/make.php?callbacktype=cg_stop&operator="+operator+"&product="+product+"&callbackstop_perc="+callbackstop_perc+"&advertiserid="+advertiserid+"&db="+database+"&advtable="+table+"&condition="+condition        
-			});			
-			
-			
-}
-
-</script> 
+</script>

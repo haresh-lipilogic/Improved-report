@@ -110,7 +110,7 @@
       transition: max-height .28s ease;
       background: rgba(0,0,0,.18);
     }
-    .hp-nav li.has-submenu.open .hp-submenu { max-height: 400px; }
+    .hp-nav li.has-submenu.open .hp-submenu { max-height: 600px; }
     .hp-submenu li a {
       padding: 8px 20px 8px 36px !important;
       font-size: 12.5px !important; color: #8898aa !important;

@@ -24,8 +24,10 @@ switch ($action) {
     case 'promotion_data':           action_promotion_data($con);           break;
     case 'engagement_data':          action_engagement_data($con);          break;
     case 'api_report_data':          action_api_report_data();              break;
-    case 'apicharge_data':           action_apicharge_data();               break;
-    case 'urlmake_operators':        action_urlmake_operators($con);        break;
+    case 'apicharge_data':               action_apicharge_data();                   break;
+    case 'activation_setting_load':      action_activation_setting_load($con);      break;
+    case 'activation_setting_update':    action_activation_setting_update($con);    break;
+    case 'urlmake_operators':            action_urlmake_operators($con);            break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
     case 'dashboard_data':           action_dashboard_data($con);           break;
@@ -2675,4 +2677,124 @@ function action_dashboard_data(mysqli $con): void
     </div>
 </div>
     <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Activation Report Setting — load table
+// Called by: activationsetting.php  →  POST ajax/handler.php?action=activation_setting_load
+// Returns: HTML table with inline Open/Close dropdowns
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_activation_setting_load(mysqli $con): void
+{
+    $sql = "SELECT Product, Country, Action
+            FROM gamebardb_vodafone_qatar_report.activationsetting
+            ORDER BY Country ASC";
+    $res = $con->query($sql);
+    if (!$res) {
+        echo '<div style="padding:40px;text-align:center;color:#e53e3e">
+                <strong>Query failed.</strong>
+                <div style="margin-top:8px;font-size:12px;color:#718096">'
+             . htmlspecialchars($con->error) .
+             '</div></div>';
+        return;
+    }
+
+    $rows = [];
+    while ($row = $res->fetch_assoc()) { $rows[] = $row; }
+    $res->close();
+
+    if (empty($rows)) {
+        echo '<div style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;margin:0">No activation settings found.</p>
+              </div>';
+        return;
+    }
+    ?>
+<div class="hp-card">
+    <div class="hp-card-header">
+        <h4><i class="fa fa-toggle-on"></i> Activation Settings
+            <small style="font-size:12px;font-weight:400;color:rgba(255,255,255,.7);margin-left:10px;">
+                <?php echo count($rows); ?> records
+            </small>
+        </h4>
+    </div>
+    <div class="hp-card-body" style="overflow-x:auto;">
+        <table id="as-table" class="table table-striped table-bordered" style="width:100%">
+            <thead>
+                <tr>
+                    <th style="text-align:center">Product</th>
+                    <th style="text-align:center">Country</th>
+                    <th style="text-align:center">Action</th>
+                    <th style="text-align:center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($rows as $row):
+                    $p = htmlspecialchars($row['Product']);
+                    $c = htmlspecialchars($row['Country']);
+                    $a = htmlspecialchars($row['Action']);
+                ?>
+                <tr>
+                    <td style="text-align:center"><?php echo $p; ?></td>
+                    <td style="text-align:center"><?php echo $c; ?></td>
+                    <td style="text-align:center">
+                        <select class="action-select form-control"
+                                style="width:120px;display:inline-block"
+                                data-product="<?php echo $p; ?>"
+                                data-country="<?php echo $c; ?>">
+                            <option value="Open"  <?php echo $a === 'Open'  ? 'selected' : ''; ?>>Open</option>
+                            <option value="Close" <?php echo $a === 'Close' ? 'selected' : ''; ?>>Close</option>
+                        </select>
+                    </td>
+                    <td style="text-align:center">
+                        <span class="as-status-<?php echo $p; ?>-<?php echo $c; ?>">
+                            <?php if ($a === 'Open'): ?>
+                            <span class="label label-success">Open</span>
+                            <?php else: ?>
+                            <span class="label label-danger">Closed</span>
+                            <?php endif; ?>
+                        </span>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Activation Report Setting — update single row
+// Called by: activationsetting.php  →  POST ajax/handler.php?action=activation_setting_update
+// POST params: act (Open|Close), product, country
+// Returns: JSON {ok: true} or {ok: false, msg: "..."}
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_activation_setting_update(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $act     = trim($_POST['act']     ?? '');
+    $product = trim($_POST['product'] ?? '');
+    $country = trim($_POST['country'] ?? '');
+
+    if (!in_array($act, ['Open', 'Close'], true) || $product === '' || $country === '') {
+        echo json_encode(['ok' => false, 'msg' => 'Invalid parameters']);
+        return;
+    }
+
+    $stmt = $con->prepare(
+        "UPDATE gamebardb_vodafone_qatar_report.activationsetting
+         SET Action = ? WHERE Product = ? AND Country = ?"
+    );
+    if (!$stmt) {
+        echo json_encode(['ok' => false, 'msg' => $con->error]);
+        return;
+    }
+    $stmt->bind_param('sss', $act, $product, $country);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    echo json_encode(['ok' => $ok]);
 }

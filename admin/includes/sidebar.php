@@ -84,8 +84,49 @@
         </li>
       </ul>
     </li>
-    <li class="<?php echo $currentPage === 'other_reports.php' ? 'active' : ''; ?>">
-      <a href="other_reports.php"><i class="fa fa-folder-open-o"></i> Other Reports</a>
+    <?php
+      $otherPages = [
+        'samedaydeactivation.php','samedaydeactivation2.php',
+        'partner_tracking_report.php','pub_report.php',
+        'activationsetting.php','callbackssetting.php',
+        'cron_running_report.php','currency.php',
+        'callbacksentreport.php','callbackanalysis.php',
+        'adduat.php','alluat.php','checkactivation.php',
+      ];
+      $otherOpen = in_array($currentPage, $otherPages) ? 'open' : '';
+    ?>
+    <li class="has-submenu <?php echo $otherOpen; ?>">
+      <a href="#"><i class="fa fa-folder-open-o"></i> Other Reports</a>
+      <ul class="hp-submenu">
+        </li>
+        <li class="<?php echo $currentPage === 'activationsetting.php'      ? 'active' : ''; ?>">
+          <a href="activationsetting.php"><i class="fa fa-file-text-o"></i> Activation Report Setting</a>
+        </li>
+        <li class="<?php echo $currentPage === 'callbackssetting.php'       ? 'active' : ''; ?>">
+          <a href="callbackssetting.php"><i class="fa fa-file-text-o"></i> Callback Settings</a>
+        </li>
+        <li class="<?php echo $currentPage === 'cron_running_report.php'    ? 'active' : ''; ?>">
+          <a href="cron_running_report.php"><i class="fa fa-file-text-o"></i> Cron Analysis</a>
+        </li>
+        <li class="<?php echo $currentPage === 'currency.php'               ? 'active' : ''; ?>">
+          <a href="currency.php"><i class="fa fa-file-text-o"></i> Currency</a>
+        </li>
+        <li class="<?php echo $currentPage === 'callbacksentreport.php'     ? 'active' : ''; ?>">
+          <a href="callbacksentreport.php"><i class="fa fa-file-text-o"></i> CallBackSent Report</a>
+        </li>
+        <li class="<?php echo $currentPage === 'callbackanalysis.php'       ? 'active' : ''; ?>">
+          <a href="callbackanalysis.php"><i class="fa fa-file-text-o"></i> CallBackSent Analysis</a>
+        </li>
+        <li class="<?php echo $currentPage === 'adduat.php'                 ? 'active' : ''; ?>">
+          <a href="adduat.php"><i class="fa fa-file-text-o"></i> Add UAT</a>
+        </li>
+        <li class="<?php echo $currentPage === 'alluat.php'                 ? 'active' : ''; ?>">
+          <a href="alluat.php"><i class="fa fa-file-text-o"></i> All UAT</a>
+        </li>
+        <li class="<?php echo $currentPage === 'checkactivation.php'        ? 'active' : ''; ?>">
+          <a href="checkactivation.php"><i class="fa fa-file-text-o"></i> Check Crons</a>
+        </li>
+      </ul>
     </li>
   </ul>
 </div>
