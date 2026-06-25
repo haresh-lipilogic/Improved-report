@@ -60,19 +60,56 @@ $(document).ready(function () {
             $('#as-results').html(html);
 
             if ($('#as-table').length) {
+                /**
+                 * exportBody — fixes two issues in this table:
+                 *  1. Action column has a <select> — all option texts get joined
+                 *     ("Open Close") instead of just the selected value.
+                 *  2. Status column has a <span class="label"> badge — text
+                 *     extraction works fine but we strip extra whitespace.
+                 *
+                 * DOM path (copy/csv/excel/print): node is the live <td>.
+                 * Regex path (pdfHtml5): node is null, data is raw innerHTML.
+                 */
+                var exportBody = function (data, row, column, node) {
+                    // DOM path
+                    if (node) {
+                        var $sel = $(node).find('select.action-select');
+                        if ($sel.length) return $sel.val();
+                        var $badge = $(node).find('.label');
+                        if ($badge.length) return $badge.text().trim();
+                    }
+                    // Regex path for pdfHtml5
+                    if (typeof data === 'string') {
+                        // Action column: extract the <option selected>value</option>
+                        if (data.indexOf('action-select') !== -1) {
+                            var m = data.match(/<option[^>]+selected[^>]*>([^<]+)<\/option>/i);
+                            return m ? m[1].trim() : '';
+                        }
+                        // Status column: extract text from <span class="label ...">text</span>
+                        if (data.indexOf('class="label') !== -1) {
+                            var m2 = data.match(/>([^<]+)<\/span>/);
+                            return m2 ? m2[1].trim() : data;
+                        }
+                    }
+                    return data;
+                };
+
+                var exportOpts = { format: { body: exportBody } };
+
                 $('#as-table').DataTable({
                     dom      : 'Bfrtip',
                     buttons  : [
-                        { extend: 'copy',  className: 'btn-sm' },
-                        { extend: 'csv',   className: 'btn-sm' },
-                        { extend: 'excel', className: 'btn-sm' },
+                        { extend: 'copy',  className: 'btn-sm', exportOptions: exportOpts },
+                        { extend: 'csv',   className: 'btn-sm', exportOptions: exportOpts },
+                        { extend: 'excel', className: 'btn-sm', exportOptions: exportOpts },
                         {
-                            extend     : 'pdfHtml5',
-                            className  : 'btn-sm',
-                            title      : 'Activation Report Setting | SVMobi',
-                            orientation: 'portrait',
-                            pageSize   : 'A4',
-                            customize  : function (doc) {
+                            extend       : 'pdfHtml5',
+                            className    : 'btn-sm',
+                            title        : 'Activation Report Setting | SVMobi',
+                            orientation  : 'portrait',
+                            pageSize     : 'A4',
+                            exportOptions: exportOpts,
+                            customize    : function (doc) {
                                 doc.pageMargins = [30, 40, 30, 30];
                                 doc.defaultStyle.fontSize        = 10;
                                 doc.defaultStyle.alignment       = 'center';
@@ -93,7 +130,7 @@ $(document).ready(function () {
                                 });
                             }
                         },
-                        { extend: 'print', className: 'btn-sm' }
+                        { extend: 'print', className: 'btn-sm', exportOptions: exportOpts }
                     ],
                     order      : [[1, 'asc']],
                     pageLength : 50

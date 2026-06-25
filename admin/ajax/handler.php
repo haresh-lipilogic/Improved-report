@@ -27,6 +27,8 @@ switch ($action) {
     case 'apicharge_data':               action_apicharge_data();                   break;
     case 'activation_setting_load':      action_activation_setting_load($con);      break;
     case 'activation_setting_update':    action_activation_setting_update($con);    break;
+    case 'callback_setting_load':        action_callback_setting_load($con);        break;
+    case 'callback_setting_update':      action_callback_setting_update($con);      break;
     case 'urlmake_operators':            action_urlmake_operators($con);            break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -2797,4 +2799,122 @@ function action_activation_setting_update(mysqli $con): void
     $stmt->close();
 
     echo json_encode(['ok' => $ok]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Callback Settings — load rows
+// Called by: callbackssetting.php → POST ajax/handler.php?action=callback_setting_load
+// POST params: product, operator
+// Returns: JSON { success, rows[], meta: {advdb, advtable, condition, operator, product} }
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_callback_setting_load(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $product  = trim($_POST['product']  ?? '');
+    $operator = trim($_POST['operator'] ?? '');
+
+    if ($product === '' || $operator === '') {
+        echo json_encode(['success' => false, 'message' => 'Product and operator are required.']);
+        return;
+    }
+
+    $stmt = $con->prepare(
+        "SELECT advdb, advtable, callbackcondition
+         FROM gamebardb_vodafone_qatar_report.mainreportquery
+         WHERE product = ? AND operator = ?
+         LIMIT 1"
+    );
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'message' => $con->error]);
+        return;
+    }
+    $stmt->bind_param('ss', $product, $operator);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) {
+        echo json_encode(['success' => false, 'message' => 'No configuration found for selected product/operator.']);
+        return;
+    }
+
+    $advdb     = $row['advdb'];
+    $advtable  = $row['advtable'];
+    $condition = $row['callbackcondition'];
+
+    $query = "SELECT a.advertiserid, a.callbackurl, a.advname, isactive, spo_stop, act_stop, cg_stop
+              FROM {$advdb}.{$advtable}
+              INNER JOIN advertiserdb.advertiser a ON a.advertiserid = {$advtable}.advertiserid
+              {$condition}";
+
+    $res = $con->query($query);
+    if (!$res) {
+        echo json_encode(['success' => false, 'message' => 'Query error: ' . $con->error]);
+        return;
+    }
+
+    $rows = [];
+    while ($r = $res->fetch_assoc()) {
+        $rows[] = [
+            'advertiserid' => (int)$r['advertiserid'],
+            'advname'      => htmlspecialchars($r['advname'],     ENT_QUOTES),
+            'callbackurl'  => htmlspecialchars($r['callbackurl'], ENT_QUOTES),
+            'act_stop'     => $r['act_stop'],
+            'spo_stop'     => $r['spo_stop'],
+            'cg_stop'      => $r['cg_stop'],
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'rows'    => $rows,
+        'meta'    => [
+            'advdb'     => $advdb,
+            'advtable'  => $advtable,
+            'condition' => $condition,
+            'operator'  => $operator,
+            'product'   => $product,
+        ],
+    ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Callback Settings — update stop percentage
+// Called by: callbackssetting.php → POST ajax/handler.php?action=callback_setting_update
+// POST params: callbacktype (act_stop|spo_stop|cg_stop), advertiserid, callbackstop_perc,
+//              advdb, advtable, condition
+// Returns: JSON { ok: true } or { ok: false, msg: "..." }
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_callback_setting_update(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $allowed_types = ['act_stop', 'spo_stop', 'cg_stop'];
+
+    $callbacktype = trim($_POST['callbacktype']       ?? '');
+    $advertiserid = trim($_POST['advertiserid']       ?? '');
+    $perc         = trim($_POST['callbackstop_perc']  ?? '');
+    $advdb        = trim($_POST['advdb']              ?? '');
+    $advtable     = trim($_POST['advtable']           ?? '');
+    $condition    = trim($_POST['condition']          ?? '');
+
+    if (!in_array($callbacktype, $allowed_types, true) || $advertiserid === '' || $advdb === '' || $advtable === '') {
+        echo json_encode(['ok' => false, 'msg' => 'Invalid parameters.']);
+        return;
+    }
+
+    if ($advertiserid === 'mehul') {
+        $sql = $condition === ''
+            ? "UPDATE {$advdb}.{$advtable} SET {$callbacktype} = '" . mysqli_real_escape_string($con, $perc) . "'"
+            : "UPDATE {$advdb}.{$advtable} SET {$callbacktype} = '" . mysqli_real_escape_string($con, $perc) . "' {$condition}";
+    } else {
+        $advid = mysqli_real_escape_string($con, $advertiserid);
+        $sql = $condition === ''
+            ? "UPDATE {$advdb}.{$advtable} SET {$callbacktype} = '" . mysqli_real_escape_string($con, $perc) . "' WHERE advertiserid = '{$advid}'"
+            : "UPDATE {$advdb}.{$advtable} SET {$callbacktype} = '" . mysqli_real_escape_string($con, $perc) . "' {$condition} AND advertiserid = '{$advid}'";
+    }
+
+    $ok = $con->query($sql);
+    echo json_encode(['ok' => (bool)$ok, 'msg' => $ok ? '' : $con->error]);
 }
