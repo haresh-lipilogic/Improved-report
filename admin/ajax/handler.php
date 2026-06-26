@@ -32,6 +32,7 @@ switch ($action) {
     case 'currency_load':                action_currency_load($con);                break;
     case 'currency_update':             action_currency_update($con);              break;
     case 'callback_report_load':        action_callback_report_load($con);         break;
+    case 'uat_add':                     action_uat_add($con);                      break;
     case 'urlmake_operators':            action_urlmake_operators($con);            break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -3164,4 +3165,83 @@ function action_callback_report_load(mysqli $con): void
     $html .= '</table></div></div>';
 
     echo $html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Add UAT record
+// Called by: adduat.php  →  POST ajax/handler.php?action=uat_add
+// POST params: all 31 UAT form fields
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_uat_add(mysqli $con): void
+{
+    header('Content-Type: application/json');
+    $db = 'gamebardb_vodafone_qatar_report';
+
+    $product                      = trim($_POST['product']                      ?? '');
+    $country                      = trim($_POST['country']                      ?? '');
+    $operator                     = trim($_POST['operator']                     ?? '');
+    $url                          = trim($_POST['url']                          ?? '');
+    $pricepoint                   = trim($_POST['pricepoint']                   ?? '');
+    $pricepointdays               = trim($_POST['pricepointdays']               ?? '');
+    $freetrial                    = trim($_POST['freetrial']                    ?? '');
+    $freetrialdays                = trim($_POST['freetrialdays']                ?? '');
+    $fallback                     = trim($_POST['fallback']                     ?? '');
+    $actfallbackamount            = trim($_POST['actfallbackamount']            ?? '');
+    $subscribebutton              = trim($_POST['subscribebutton']              ?? '');
+    $servicename                  = trim($_POST['servicename']                  ?? '');
+    $pricepointonlanding          = trim($_POST['pricepointonlanding']          ?? '');
+    $servicetnc                   = trim($_POST['servicetnc']                   ?? '');
+    $openinglp                    = trim($_POST['openinglp']                    ?? '');
+    $consenthandle                = trim($_POST['consenthandle']                ?? '');
+    $activatedsuccessfully        = trim($_POST['activatedsuccessfully']        ?? '');
+    $activationcallbackwithamount = trim($_POST['activationcallbackwithamount'] ?? '');
+    $fallbackinactivationcallback = trim($_POST['fallbackinactivationcallback'] ?? '');
+    $retriesoftheactivation       = trim($_POST['retriesoftheactivation']       ?? '');
+    $unsubbyuser                  = trim($_POST['unsubbyuser']                  ?? '');
+    $unsubinreport                = trim($_POST['unsubinreport']                ?? '');
+    $renewalgetting               = trim($_POST['renewalgetting']               ?? '');
+    $fallbackinrenewal            = trim($_POST['fallbackinrenewal']            ?? '');
+    $renfallbackamount            = trim($_POST['renfallbackamount']            ?? '');
+    $daysforrenewal               = trim($_POST['daysforrenewal']               ?? '');
+    $directcontentpage            = trim($_POST['directcontentpage']            ?? '');
+    $downloadcontentbyuser        = trim($_POST['downloadcontentbyuser']        ?? '');
+    $newportal                    = trim($_POST['newportal']                    ?? '');
+    $callbacksent                 = trim($_POST['callbacksent']                 ?? '');
+    $completereport               = trim($_POST['completereport']               ?? '');
+
+    $stmt = $con->prepare(
+        "INSERT INTO {$db}.uat
+         (`product`,`country`,`operator`,`testurl`,`pricepoint`,`pricepointperdays`,
+          `freetrial`,`freetrialdays`,`fallback`,`actfallbackamount`,
+          `landingpagesubscribebutton`,`landingpageservicename`,`landingpagepricepoint`,
+          `landingpaget&c`,`landingmsisdn`,`consentpagehandle`,
+          `activatedsuccessfully`,`activationcallbackwithamount`,`fallbackinactivationcallback`,
+          `retriesoftheactivation`,`unsubbyuser`,`unsubinreport`,
+          `renewalgetting`,`fallbackinrenewal`,`renfallbackamount`,`daysforrenewal`,
+          `directcontentpage`,`downloadcontentbyuser`,`newportal`,
+          `callbacksent`,`completereport`)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    );
+
+    if (!$stmt) {
+        echo json_encode(['ok' => false, 'msg' => $con->error]);
+        return;
+    }
+
+    $stmt->bind_param('sssssssssssssssssssssssssssssss',
+        $product, $country, $operator, $url, $pricepoint,
+        $pricepointdays, $freetrial, $freetrialdays, $fallback, $actfallbackamount,
+        $subscribebutton, $servicename, $pricepointonlanding, $servicetnc, $openinglp,
+        $consenthandle, $activatedsuccessfully, $activationcallbackwithamount,
+        $fallbackinactivationcallback, $retriesoftheactivation,
+        $unsubbyuser, $unsubinreport, $renewalgetting, $fallbackinrenewal,
+        $renfallbackamount, $daysforrenewal, $directcontentpage,
+        $downloadcontentbyuser, $newportal, $callbacksent, $completereport
+    );
+
+    $ok  = $stmt->execute();
+    $err = $stmt->error;
+    $stmt->close();
+
+    echo json_encode(['ok' => $ok, 'msg' => $ok ? 'UAT record added successfully.' : $err]);
 }

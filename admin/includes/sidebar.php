@@ -125,9 +125,9 @@
         <li class="<?php echo $currentPage === 'callbackreport.php'     ? 'active' : ''; ?>">
           <a href="callbackreport.php"><i class="fa fa-file-text-o"></i> CallBackSent Report</a>
         </li>
-        <li class="<?php echo $currentPage === 'callbackanalysis.php'       ? 'active' : ''; ?>">
+        <!-- <li class="<?php echo $currentPage === 'callbackanalysis.php'       ? 'active' : ''; ?>">
           <a href="callbackanalysis.php"><i class="fa fa-file-text-o"></i> CallBackSent Analysis</a>
-        </li>
+        </li> -->
         <li class="<?php echo $currentPage === 'adduat.php'                 ? 'active' : ''; ?>">
           <a href="adduat.php"><i class="fa fa-file-text-o"></i> Add UAT</a>
         </li>
