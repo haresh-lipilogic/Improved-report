@@ -111,31 +111,31 @@
           <a href="pub_report.php"><i class="fa fa-file-text-o"></i> PubID wise Report</a> -->
         </li>
         <li class="<?php echo $currentPage === 'activationsetting.php'      ? 'active' : ''; ?>">
-          <a href="activationsetting.php"><i class="fa fa-file-text-o"></i> Activation Report Setting</a>
+          <a href="activationsetting.php"><i class="fa fa-toggle-on"></i> Activation Report Setting</a>
         </li>
         <li class="<?php echo $currentPage === 'callbackssetting.php'       ? 'active' : ''; ?>">
-          <a href="callbackssetting.php"><i class="fa fa-file-text-o"></i> Callback Settings</a>
+          <a href="callbackssetting.php"><i class="fa fa-bell-o"></i> Callback Settings</a>
         </li>
         <!-- <li class="<?php echo $currentPage === 'cron_running_report.php'    ? 'active' : ''; ?>">
-          <a href="cron_running_report.php"><i class="fa fa-file-text-o"></i> Cron Analysis</a>
+          <a href="cron_running_report.php"><i class="fa fa-clock-o"></i> Cron Analysis</a>
         </li> -->
         <li class="<?php echo $currentPage === 'currency.php'               ? 'active' : ''; ?>">
-          <a href="currency.php"><i class="fa fa-file-text-o"></i> Currency</a>
+          <a href="currency.php"><i class="fa fa-money"></i> Currency</a>
         </li>
         <li class="<?php echo $currentPage === 'callbackreport.php'     ? 'active' : ''; ?>">
-          <a href="callbackreport.php"><i class="fa fa-file-text-o"></i> CallBackSent Report</a>
+          <a href="callbackreport.php"><i class="fa fa-phone"></i> CallBackSent Report</a>
         </li>
         <!-- <li class="<?php echo $currentPage === 'callbackanalysis.php'       ? 'active' : ''; ?>">
-          <a href="callbackanalysis.php"><i class="fa fa-file-text-o"></i> CallBackSent Analysis</a>
+          <a href="callbackanalysis.php"><i class="fa fa-bar-chart"></i> CallBackSent Analysis</a>
         </li> -->
         <li class="<?php echo $currentPage === 'adduat.php'                 ? 'active' : ''; ?>">
-          <a href="adduat.php"><i class="fa fa-file-text-o"></i> Add UAT</a>
+          <a href="adduat.php"><i class="fa fa-plus-circle"></i> Add UAT</a>
         </li>
         <li class="<?php echo $currentPage === 'alluat.php'                 ? 'active' : ''; ?>">
-          <a href="alluat.php"><i class="fa fa-file-text-o"></i> All UAT</a>
+          <a href="alluat.php"><i class="fa fa-list-alt"></i> All UAT</a>
         </li>
         <li class="<?php echo $currentPage === 'checkactivation.php'        ? 'active' : ''; ?>">
-          <a href="checkactivation.php"><i class="fa fa-file-text-o"></i> Check Crons</a>
+          <a href="checkactivation.php"><i class="fa fa-check-circle-o"></i> Check Crons</a>
         </li>
       </ul>
     </li>
