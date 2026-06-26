@@ -33,6 +33,8 @@ switch ($action) {
     case 'currency_update':             action_currency_update($con);              break;
     case 'callback_report_load':        action_callback_report_load($con);         break;
     case 'uat_add':                     action_uat_add($con);                      break;
+    case 'uat_countries':               action_uat_countries($con);                break;
+    case 'uat_load':                    action_uat_load($con);                     break;
     case 'urlmake_operators':            action_urlmake_operators($con);            break;
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
@@ -3244,4 +3246,133 @@ function action_uat_add(mysqli $con): void
     $stmt->close();
 
     echo json_encode(['ok' => $ok, 'msg' => $ok ? 'UAT record added successfully.' : $err]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Distinct country list for All UAT dropdown
+// Called by: alluat.php  →  GET ajax/handler.php?action=uat_countries
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_uat_countries(mysqli $con): void
+{
+    header('Content-Type: application/json');
+    $db  = 'gamebardb_vodafone_qatar_report';
+    $res = $con->query(
+        "SELECT DISTINCT country FROM {$db}.uat WHERE country IS NOT NULL AND country != '' ORDER BY country ASC"
+    );
+    $list = [];
+    while ($row = $res->fetch_assoc()) $list[] = $row['country'];
+    echo json_encode($list);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: UAT pivot table for a given country
+// Called by: alluat.php  →  POST ajax/handler.php?action=uat_load
+// POST params: country
+// Returns: HTML pivot table (rows = questions, columns = operators)
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_uat_load(mysqli $con): void
+{
+    $db      = 'gamebardb_vodafone_qatar_report';
+    $country = trim($_POST['country'] ?? '');
+
+    if (!$country) {
+        echo '<div class="hp-card" style="margin-top:16px"><div class="hp-card-body" style="padding:60px;text-align:center">
+                <i class="fa fa-exclamation-circle" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px"></i>
+                <p style="color:#a0aec0;font-size:14px;margin:0">Please select a Country.</p>
+              </div></div>';
+        return;
+    }
+
+    $stmt = $con->prepare(
+        "SELECT * FROM {$db}.uat WHERE country = ? ORDER BY operator ASC"
+    );
+    $stmt->bind_param('s', $country);
+    $stmt->execute();
+    $res  = $stmt->get_result();
+    $rows = [];
+    while ($r = $res->fetch_assoc()) $rows[] = $r;
+    $stmt->close();
+
+    if (empty($rows)) {
+        echo '<div class="hp-card" style="margin-top:16px"><div class="hp-card-body" style="padding:60px;text-align:center">
+                <i class="fa fa-inbox" style="font-size:52px;color:#e2e8f0;display:block;margin-bottom:18px"></i>
+                <p style="color:#a0aec0;font-size:15px;margin:0 0 6px;font-weight:600">No UAT Records</p>
+                <p style="color:#cbd5e0;font-size:13px;margin:0">No UAT entries found for <strong>' . htmlspecialchars($country) . '</strong>.</p>
+              </div></div>';
+        return;
+    }
+
+    // Build lookup: operator → row
+    $operators = array_column($rows, 'operator');
+    $ll = [];
+    foreach ($rows as $r) $ll[$r['operator']] = $r;
+    $n = count($operators);
+
+    // Question definitions: field => [label, section_header_before_this_row | null]
+    $questions = [
+        'product'                      => ['Product',                                        null],
+        'country'                      => ['Country',                                        null],
+        'testurl'                      => ['Test URL',                                       null],
+        'pricepoint'                   => ['Price Point',                                    null],
+        'pricepointperdays'            => ['Days of Price Point',                            null],
+        'freetrial'                    => ['Free Trial',                                     null],
+        'freetrialdays'                => ['Free Trial Days',                                null],
+        'fallback'                     => ['Fallback',                                       null],
+        'actfallbackamount'            => ['Fallback Amount',                                null],
+        'landingpagesubscribebutton'   => ['Subscribe Button',                               'Landing Page Must Include'],
+        'landingpageservicename'       => ['Service Name',                                   null],
+        'landingpagepricepoint'        => ['Price Point on Landing',                         null],
+        'landingpaget&c'               => ['Service T&amp;C',                                null],
+        'landingmsisdn'                => ['Opening MDN / HE / LP',                         null],
+        'consentpagehandle'            => ['Consent Page Handled By',                        'Consent Page'],
+        'activatedsuccessfully'        => ['Sub Activated Properly &amp; in Report',         null],
+        'activationcallbackwithamount' => ['Activation Callback with Amount',                null],
+        'fallbackinactivationcallback' => ['Fallbacks in Activation Callback',               null],
+        'retriesoftheactivation'       => ['Retries in Activation',                          null],
+        'unsubbyuser'                  => ['User Can Unsub',                                 'Unsub Flow'],
+        'unsubinreport'                => ['Churn Captured in Report',                       null],
+        'renewalgetting'               => ['Getting Renewal',                                'Renewal Flow'],
+        'fallbackinrenewal'            => ['Fallbacks in Renewal',                           null],
+        'renfallbackamount'            => ['Renewal Fallback Amount',                        null],
+        'daysforrenewal'               => ['Retries in Renewal',                             null],
+        'directcontentpage'            => ['Directed to Content Page',                       'Content Flow'],
+        'downloadcontentbyuser'        => ['User Can Download Games',                        null],
+        'newportal'                    => ['New Portal Displayed',                           null],
+        'callbacksent'                 => ['Callback Sent to Publisher',                     'Call-backs'],
+        'completereport'               => ['Geo in Reporting Tool (Act/Perform/Trend/Last)', null],
+    ];
+
+    $html  = '<div class="hp-card" style="margin-top:16px">';
+    $html .= '<div class="hp-card-header"><h4><i class="fa fa-list-alt"></i> UAT Comparison — ' . htmlspecialchars($country);
+    $html .= '<small style="font-size:12px;font-weight:400;color:rgba(255,255,255,.7);margin-left:10px;">';
+    $html .= $n . ' operator' . ($n !== 1 ? 's' : '') . '</small></h4></div>';
+    $html .= '<div class="hp-card-body" style="overflow-x:auto;padding:0;">';
+    $html .= '<table class="table table-striped table-bordered" style="width:100%;font-size:12px;margin:0;">';
+    $html .= '<thead>';
+    $html .= '<tr style="background:#667eea;color:#fff;">';
+    $html .= '<th rowspan="2" style="vertical-align:middle;min-width:260px;">Question</th>';
+    $html .= '<th colspan="' . $n . '" style="text-align:center">Operator</th></tr>';
+    $html .= '<tr style="background:#764ba2;color:#fff;">';
+    foreach ($operators as $op) {
+        $html .= '<th style="text-align:center;white-space:nowrap">' . htmlspecialchars($op) . '</th>';
+    }
+    $html .= '</tr></thead><tbody>';
+
+    foreach ($questions as $field => $meta) {
+        list($label, $section) = $meta;
+        if ($section !== null) {
+            $html .= '<tr><td colspan="' . ($n + 1) . '" style="background:#f8f9fa;padding:8px 12px;">';
+            $html .= '<strong style="color:#e53935;font-size:12px;"><i class="fa fa-angle-right"></i> ' . $section . '</strong>';
+            $html .= '</td></tr>';
+        }
+        $html .= '<tr><td style="padding:6px 10px;">' . $label . '</td>';
+        foreach ($operators as $op) {
+            $val = htmlspecialchars($ll[$op][$field] ?? '—');
+            $html .= '<td style="text-align:center;padding:6px 10px;">' . $val . '</td>';
+        }
+        $html .= '</tr>';
+    }
+
+    $html .= '</tbody></table></div></div>';
+    echo $html;
 }
