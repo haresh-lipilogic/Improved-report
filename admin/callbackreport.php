@@ -37,17 +37,6 @@ include("includes/check_session.php");
 
                 <div class="col-md-2 col-sm-4 col-xs-12">
                     <div class="form-group">
-                        <label class="hp-filter-label">Operator</label>
-                        <div id="cbr-operator-wrap">
-                            <select name="operator" id="cbr-operator" class="form-control" disabled>
-                                <option value="">-- Select Product First --</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-2 col-sm-4 col-xs-12">
-                    <div class="form-group">
                         <label class="hp-filter-label">Start Date</label>
                         <input type="text" name="start_date" id="cbr-start" class="form-control birthday"
                                value="<?php echo date('d-m-Y'); ?>">
@@ -64,8 +53,36 @@ include("includes/check_session.php");
 
                 <div class="col-md-2 col-sm-4 col-xs-12">
                     <div class="form-group">
+                        <label class="hp-filter-label">
+                            Advertiser
+                            <span id="cbr-adv-spinner" style="display:none;margin-left:6px;">
+                                <i class="fa fa-spinner fa-spin" style="font-size:11px;color:#764ba2;"></i>
+                            </span>
+                        </label>
+                        <select name="advertiser" id="cbr-advertiser" class="form-control" disabled>
+                            <option value="">-- Select Product &amp; Dates first --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
+                        <label class="hp-filter-label">
+                            Operator
+                            <span id="cbr-op-spinner" style="display:none;margin-left:6px;">
+                                <i class="fa fa-spinner fa-spin" style="font-size:11px;color:#667eea;"></i>
+                            </span>
+                        </label>
+                        <select name="operator" id="cbr-operator" class="form-control" disabled>
+                            <option value="">-- Select Product &amp; Dates first --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-2 col-sm-4 col-xs-12">
+                    <div class="form-group">
                         <label class="hp-filter-label">&nbsp;</label>
-                        <button type="submit" id="cbr-submit-btn" class="btn btn-primary btn-block">
+                        <button type="submit" id="cbr-submit-btn" class="btn btn-primary btn-block" disabled>
                             <i class="fa fa-search"></i> Search
                         </button>
                     </div>
@@ -79,7 +96,7 @@ include("includes/check_session.php");
 <div id="cbr-results">
     <div style="padding:60px;text-align:center;color:#a0aec0;">
         <i class="fa fa-phone" style="font-size:40px;display:block;margin-bottom:12px;color:#e2e8f0;"></i>
-        Select a product and operator, then click Search.
+        Select product and date range — advertisers and operators with data will load automatically.
     </div>
 </div>
 
@@ -98,35 +115,88 @@ $(document).ready(function () {
         locale           : { format: 'DD-MM-YYYY' }
     });
 
-    // ── Product change → load operators ──────────────────────────────────────
-    $('#cbr-product').on('change', function () {
-        var product = $(this).val();
-        if (!product) {
-            $('#cbr-operator-wrap').html(
-                '<select name="operator" id="cbr-operator" class="form-control" disabled>' +
-                '<option value="">-- Select Product First --</option></select>'
-            );
-            $('#cbr-results').html(
-                '<div style="padding:60px;text-align:center;color:#a0aec0;">' +
-                '<i class="fa fa-phone" style="font-size:40px;display:block;margin-bottom:12px;color:#e2e8f0;"></i>' +
-                'Select a product and operator, then click Search.</div>'
-            );
+    // ── Reload advertisers + operators whenever product or either date changes ─
+    function reloadFilters() {
+        var product = $('#cbr-product').val();
+        var start   = $('#cbr-start').val();
+        var end     = $('#cbr-end').val();
+
+        if (!product || !start || !end) {
+            $('#cbr-advertiser').html('<option value="">-- Select Product &amp; Dates first --</option>').prop('disabled', true);
+            $('#cbr-operator').html('<option value="">-- Select Product &amp; Dates first --</option>').prop('disabled', true);
+            $('#cbr-submit-btn').prop('disabled', true);
             return;
         }
-        $.get('ajax/handler.php', { action: 'find_operators', product: product }, function (html) {
-            $('#cbr-operator-wrap').html(html);
+
+        $('#cbr-adv-spinner, #cbr-op-spinner').show();
+        $('#cbr-advertiser').prop('disabled', true).html('<option value="">Loading...</option>');
+        $('#cbr-operator').prop('disabled', true).html('<option value="">Loading...</option>');
+        $('#cbr-submit-btn').prop('disabled', true);
+
+        var payload  = { product: product, start_date: start, end_date: end };
+        var advDone  = false, opsDone = false;
+
+        function checkBothDone() {
+            if (advDone && opsDone) {
+                var opsOk = $('#cbr-operator').prop('disabled') === false;
+                $('#cbr-submit-btn').prop('disabled', !opsOk);
+            }
+        }
+
+        // Advertisers
+        $.post('ajax/handler.php', $.extend({ action: 'callback_report_advertisers' }, payload), function (advs) {
+            $('#cbr-adv-spinner').hide();
+            if (!advs || advs.length === 0) {
+                $('#cbr-advertiser').html('<option value="all">All Advertisers</option>').prop('disabled', false);
+            } else {
+                var opts = '<option value="all">All (' + advs.length + ' advertisers)</option>';
+                advs.forEach(function (a) {
+                    opts += '<option value="' + a.id + '">' + $('<span>').text(a.name).html() + '</option>';
+                });
+                $('#cbr-advertiser').html(opts).prop('disabled', false);
+            }
+            advDone = true;
+            checkBothDone();
+        }, 'json').fail(function () {
+            $('#cbr-adv-spinner').hide();
+            $('#cbr-advertiser').html('<option value="all">All Advertisers</option>').prop('disabled', false);
+            advDone = true;
+            checkBothDone();
         });
-    });
+
+        // Operators
+        $.post('ajax/handler.php', $.extend({ action: 'callback_report_operators' }, payload), function (ops) {
+            $('#cbr-op-spinner').hide();
+            if (!ops || ops.length === 0) {
+                $('#cbr-operator').html('<option value="">-- No data in this range --</option>').prop('disabled', true);
+            } else {
+                var opts = '<option value="all">All (' + ops.length + ' operators)</option>';
+                ops.forEach(function (op) { opts += '<option value="' + op + '">' + op + '</option>'; });
+                $('#cbr-operator').html(opts).prop('disabled', false);
+            }
+            opsDone = true;
+            checkBothDone();
+        }, 'json').fail(function () {
+            $('#cbr-op-spinner').hide();
+            $('#cbr-operator').html('<option value="">-- Failed to load --</option>').prop('disabled', true);
+            opsDone = true;
+            checkBothDone();
+        });
+    }
+
+    $('#cbr-product').on('change', reloadFilters);
+    $('#cbr-start, #cbr-end').on('apply.daterangepicker', reloadFilters);
 
     // ── Form submit → load report ─────────────────────────────────────────────
     $('#cbr-form').on('submit', function (e) {
         e.preventDefault();
 
-        var product  = $('#cbr-product').val();
-        var operator = $('#cbr-operator-wrap select').val();
+        var product    = $('#cbr-product').val();
+        var operator   = $('#cbr-operator').val();
+        var advertiser = $('#cbr-advertiser').val() || 'all';
 
         if (!product || !operator) {
-            alert('Please select both Product and Operator.');
+            alert('Please select Product and Operator.');
             return;
         }
 
@@ -143,11 +213,12 @@ $(document).ready(function () {
         }
 
         $.post('ajax/handler.php', {
-            action    : 'callback_report_load',
-            product   : product,
-            operator  : operator,
-            start_date: $('#cbr-start').val(),
-            end_date  : $('#cbr-end').val()
+            action     : 'callback_report_load',
+            product    : product,
+            operator   : operator,
+            advertiser : advertiser,
+            start_date : $('#cbr-start').val(),
+            end_date   : $('#cbr-end').val()
         })
         .done(function (html) {
             $('#cbr-results').html(html);
