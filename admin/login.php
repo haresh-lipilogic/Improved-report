@@ -46,6 +46,16 @@ if (isset($_POST['submit'])) {
         $stmt->close();
 
         if (!empty($userid)) {
+            // Users in this list skip 2FA and go directly to dashboard
+            $no_2fa_users = ['durgesh'];
+
+            if (in_array($username, $no_2fa_users, true)) {
+                $_SESSION['userid']   = $userid;
+                $_SESSION['admin']    = $admin;
+                $_SESSION['username'] = $username;
+                header('Location: dashboard.php'); exit;
+            }
+
             $_SESSION['2fa_userid']   = $userid;
             $_SESSION['2fa_admin']    = $admin;
             $_SESSION['2fa_username'] = $username;
