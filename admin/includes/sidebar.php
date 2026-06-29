@@ -39,6 +39,9 @@
     <li class="<?php echo $currentPage === 'last_activityreport.php' ? 'active' : ''; ?>">
       <a href="last_activityreport.php"><i class="fa fa-clock-o"></i> Last Activity</a>
     </li>
+    <li class="<?php echo $currentPage === 'gamezop_report.php' ? 'active' : ''; ?>">
+      <a href="gamezop_report.php"><i class="fa fa-gamepad"></i> Gamezop Report</a>
+    </li>
     <li class="<?php echo $currentPage === 'performance.php' ? 'active' : ''; ?>">
       <a href="performance.php"><i class="fa fa-calendar"></i> Last 30 Days</a>
     </li>

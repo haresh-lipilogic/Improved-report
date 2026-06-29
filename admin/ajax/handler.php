@@ -42,6 +42,8 @@ switch ($action) {
     case 'urlmake_advertisers':      action_urlmake_advertisers($con);      break;
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
     case 'dashboard_data':           action_dashboard_data($con);           break;
+    case 'gamezop_partners':         action_gamezop_partners($con);         break;
+    case 'gamezop_report_load':      action_gamezop_report_load($con);      break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -3538,4 +3540,194 @@ function action_checkactivation_load(mysqli $con): void
 
     $html .= '</tbody></table></div></div>';
     echo $html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Gamezop — Partner dropdown list
+// Called by: gamezop_report.php  →  POST ajax/handler.php?action=gamezop_partners
+// Returns JSON array of active partners: [{userid, name}, ...]
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_gamezop_partners(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $stmt = $con->prepare(
+        "SELECT userid, name, access FROM svmobigamesreport.login_username ORDER BY name ASC"
+    );
+    if (!$stmt) {
+        echo json_encode([]);
+        return;
+    }
+    $stmt->execute();
+    $res      = $stmt->get_result();
+    $partners = [];
+    while ($row = $res->fetch_assoc()) {
+        $access = json_decode($row['access'] ?? '{}', true);
+        if (($access['active'] ?? '') !== '1') continue;
+        if (empty($access['for']))              continue;
+        $partners[] = [
+            'userid' => (int)$row['userid'],
+            'name'   => $row['name'],
+        ];
+    }
+    $stmt->close();
+    echo json_encode($partners);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Gamezop — Load report data
+// Called by: gamezop_report.php  →  POST ajax/handler.php?action=gamezop_report_load
+// POST params: userid (int), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD)
+// Returns JSON: {success, partner_name, stats:{...}, chart:{labels,data}, rows:[...]}
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_gamezop_report_load(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $gamezop_token = '8f222d9c-4207-4654-bf85-55e65ae6ed0c';
+
+    $userid     = (int)($_POST['userid']     ?? 0);
+    $start_date = trim($_POST['start_date'] ?? '');
+    $end_date   = trim($_POST['end_date']   ?? '');
+
+    if (!$userid
+        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)
+        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid parameters.']);
+        return;
+    }
+    if ($start_date > date('Y-m-d') || $end_date > date('Y-m-d')) {
+        echo json_encode(['success' => false, 'error' => 'Future dates are not allowed.']);
+        return;
+    }
+
+    // Fetch user's property_id and name
+    $stmt = $con->prepare(
+        "SELECT name, access FROM svmobigamesreport.login_username WHERE userid = ? LIMIT 1"
+    );
+    $stmt->bind_param('i', $userid);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) {
+        echo json_encode(['success' => false, 'error' => 'Partner not found.']);
+        return;
+    }
+
+    $access       = json_decode($row['access'] ?? '{}', true);
+    $property_id  = $access['for'] ?? '';
+    $partner_name = $row['name'];
+
+    if (!$property_id) {
+        echo json_encode(['success' => false, 'error' => 'Partner has no property ID configured.']);
+        return;
+    }
+
+    // Fetch revenueshare from offers table
+    $revenueshare = 1.0;
+    $stmt2 = $con->prepare(
+        "SELECT revenueshare FROM svmobigamesreport.offers WHERE offerid = ? LIMIT 1"
+    );
+    $stmt2->bind_param('s', $property_id);
+    $stmt2->execute();
+    $row2 = $stmt2->get_result()->fetch_assoc();
+    $stmt2->close();
+    if ($row2) {
+        $revenueshare = (float)$row2['revenueshare'];
+    }
+
+    // Call Gamezop API
+    $api_payload = json_encode([
+        'start_date'  => $start_date,
+        'end_date'    => $end_date,
+        'property_id' => $property_id,
+        'metrics'     => ['impressions', 'clicks', 'revenue', 'total-revenue', 'ctr', 'ecpm'],
+        'breakdowns'  => ['property-id'],
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => 'https://api.platform.gamezop.com/v1/ad-revenue-data',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $api_payload,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $gamezop_token,
+        ],
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+    $api_response = curl_exec($ch);
+    curl_close($ch);
+
+    $api_data = json_decode($api_response, true);
+    $stats = [
+        'impressions'   => 0,
+        'clicks'        => 0,
+        'revenue'       => 0,
+        'total_revenue' => 0,
+        'ecpm'          => 0,
+        'your_revenue'  => 0,
+    ];
+
+    if (!empty($api_data['success']) && $api_data['success'] === 'true') {
+        $item = $api_data['data']['ad_revenue'][0] ?? [];
+        if (!empty($item)) {
+            $stats['impressions']   = (int)($item['impressions']     ?? 0);
+            $stats['clicks']        = (int)($item['clicks']          ?? 0);
+            $stats['revenue']       = (float)($item['revenue']       ?? 0);
+            $stats['total_revenue'] = (float)($item['total-revenue'] ?? 0);
+            $stats['ecpm']          = (float)($item['ecpm']          ?? 0);
+            $stats['your_revenue']  = $stats['total_revenue'] * $revenueshare;
+        }
+    }
+
+    // Last 5 days chart data from stored report table
+    $chart_labels = [];
+    $chart_data   = [];
+    $stmt3 = $con->prepare(
+        "SELECT reportdate, totalrevenue FROM svmobigamesreport.report
+         WHERE offerid = ? AND reportdate >= DATE_SUB(CURDATE(), INTERVAL 5 DAY)
+         ORDER BY reportdate ASC"
+    );
+    $stmt3->bind_param('s', $property_id);
+    $stmt3->execute();
+    $res3 = $stmt3->get_result();
+    while ($r3 = $res3->fetch_assoc()) {
+        $chart_labels[] = date('d M', strtotime($r3['reportdate']));
+        $chart_data[]   = round((float)$r3['totalrevenue'], 4);
+    }
+    $stmt3->close();
+
+    // Per-day rows from stored report table for the selected range
+    $rows  = [];
+    $stmt4 = $con->prepare(
+        "SELECT reportdate, totalrevenue, impressions, ecpm, clicks
+         FROM svmobigamesreport.report
+         WHERE offerid = ? AND reportdate >= ? AND reportdate <= ?
+         ORDER BY reportdate ASC"
+    );
+    $stmt4->bind_param('sss', $property_id, $start_date, $end_date);
+    $stmt4->execute();
+    $res4 = $stmt4->get_result();
+    while ($r4 = $res4->fetch_assoc()) {
+        $rows[] = [
+            'date'        => date('d-m-Y', strtotime($r4['reportdate'])),
+            'your_rev'    => round((float)$r4['totalrevenue'] * $revenueshare, 2),
+            'total_rev'   => round((float)$r4['totalrevenue'], 2),
+            'impressions' => (int)$r4['impressions'],
+            'ecpm'        => round((float)$r4['ecpm'], 2),
+            'clicks'      => (int)$r4['clicks'],
+        ];
+    }
+    $stmt4->close();
+
+    echo json_encode([
+        'success'      => true,
+        'partner_name' => $partner_name,
+        'stats'        => $stats,
+        'chart'        => ['labels' => $chart_labels, 'data' => $chart_data],
+        'rows'         => $rows,
+    ]);
 }
