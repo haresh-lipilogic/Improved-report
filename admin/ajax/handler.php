@@ -3658,10 +3658,12 @@ function action_gamezop_report_load(mysqli $con): void
         ],
         CURLOPT_TIMEOUT        => 30,
     ]);
-    $api_response = curl_exec($ch);
+    $curl_error    = curl_error($ch);
+    $api_response  = curl_exec($ch);
     curl_close($ch);
 
     $api_data = json_decode($api_response, true);
+    $api_note = '';
     $stats = [
         'impressions'   => 0,
         'clicks'        => 0,
@@ -3671,9 +3673,19 @@ function action_gamezop_report_load(mysqli $con): void
         'your_revenue'  => 0,
     ];
 
-    if (!empty($api_data['success']) && $api_data['success'] === 'true') {
+    if ($curl_error) {
+        $api_note = 'API connection error: ' . $curl_error;
+    } elseif (!$api_response) {
+        $api_note = 'API returned empty response.';
+    } elseif (!is_array($api_data)) {
+        $api_note = 'API response could not be decoded.';
+    } elseif (empty($api_data['success']) || !$api_data['success']) {
+        $api_note = 'API error: ' . ($api_data['message'] ?? $api_data['error'] ?? 'unknown');
+    } else {
         $item = $api_data['data']['ad_revenue'][0] ?? [];
-        if (!empty($item)) {
+        if (empty($item)) {
+            $api_note = 'No ad revenue data for this date range.';
+        } else {
             $stats['impressions']   = (int)($item['impressions']     ?? 0);
             $stats['clicks']        = (int)($item['clicks']          ?? 0);
             $stats['revenue']       = (float)($item['revenue']       ?? 0);
@@ -3727,6 +3739,7 @@ function action_gamezop_report_load(mysqli $con): void
         'success'      => true,
         'partner_name' => $partner_name,
         'stats'        => $stats,
+        'api_note'     => $api_note,
         'chart'        => ['labels' => $chart_labels, 'data' => $chart_data],
         'rows'         => $rows,
     ]);

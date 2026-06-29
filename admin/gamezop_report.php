@@ -108,6 +108,12 @@ include("includes/check_session.php");
         </div>
     </div>
 
+    <!-- API notice (shown only when API has no/error data) -->
+    <div id="gz-api-note" style="display:none;margin-bottom:12px;padding:10px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:13px;color:#92400e;">
+        <i class="fa fa-exclamation-triangle" style="margin-right:6px;"></i>
+        <span id="gz-api-note-text"></span>
+    </div>
+
     <!-- Chart -->
     <div class="hp-card" style="margin-bottom:16px;">
         <div class="hp-card-header">
@@ -222,6 +228,14 @@ function gzSearch() {
         if (!r.success) {
             alert(r.error || 'Failed to load data.');
             return;
+        }
+
+        // API notice
+        if (r.api_note) {
+            $('#gz-api-note-text').text(r.api_note);
+            $('#gz-api-note').show();
+        } else {
+            $('#gz-api-note').hide();
         }
 
         // Stats tiles
