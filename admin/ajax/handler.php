@@ -43,7 +43,8 @@ switch ($action) {
     case 'urlmake_generate':         action_urlmake_generate($con);         break;
     case 'dashboard_data':           action_dashboard_data($con);           break;
     case 'gamezop_partners':         action_gamezop_partners($con);         break;
-    case 'gamezop_report_load':      action_gamezop_report_load($con);      break;
+    case 'gamezop_report_load':         action_gamezop_report_load($con);         break;
+    case 'gamezop_all_partners_report': action_gamezop_all_partners_report($con); break;
     default:
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action: ' . htmlspecialchars($action)]);
@@ -162,7 +163,8 @@ function action_report_data(mysqli $con): void
     } elseif ($end_dt1 === $today) {
         $q_hist = "SELECT * FROM `{$report}`.mainreport
                    WHERE date >= '{$start_dt1}' AND date < '{$end_dt1}'
-                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'";
+                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'
+                   ORDER BY date ASC";
         $r_hist = mysqli_query($con, $q_hist);
         if ($r_hist) {
             while ($row = mysqli_fetch_array($r_hist)) {
@@ -181,7 +183,8 @@ function action_report_data(mysqli $con): void
     } else {
         $q_hist = "SELECT * FROM `{$report}`.mainreport
                    WHERE date >= '{$start_dt1}' AND date <= '{$end_dt1}'
-                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'";
+                   AND advertiser='{$adve}' AND operator='{$operator}' AND product='{$product}'
+                   ORDER BY date ASC";
         $r_hist = mysqli_query($con, $q_hist);
         if ($r_hist) {
             while ($row = mysqli_fetch_array($r_hist)) {
@@ -3715,7 +3718,7 @@ function action_gamezop_report_load(mysqli $con): void
     // Per-day rows from stored report table for the selected range
     $rows  = [];
     $stmt4 = $con->prepare(
-        "SELECT reportdate, totalrevenue, impressions, ecpm, clicks
+        "SELECT *,reportdate, totalrevenue, impressions, ecpm, clicks
          FROM svmobigamesreport.report
          WHERE offerid = ? AND reportdate >= ? AND reportdate <= ?
          ORDER BY reportdate ASC"
@@ -3743,4 +3746,95 @@ function action_gamezop_report_load(mysqli $con): void
         'chart'        => ['labels' => $chart_labels, 'data' => $chart_data],
         'rows'         => $rows,
     ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTION: Gamezop — All-partners date-wise report (no API call, stored data only)
+// Called by: gamezop_report.php  →  POST ajax/handler.php?action=gamezop_all_partners_report
+// POST params: start_date (YYYY-MM-DD), end_date (YYYY-MM-DD)
+// Returns per-day rows for every active partner that has data in the range.
+// ═══════════════════════════════════════════════════════════════════════════════
+function action_gamezop_all_partners_report(mysqli $con): void
+{
+    header('Content-Type: application/json');
+
+    $start_date = trim($_POST['start_date'] ?? '');
+    $end_date   = trim($_POST['end_date']   ?? '');
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)
+        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid date parameters.']);
+        return;
+    }
+    if ($start_date > date('Y-m-d') || $end_date > date('Y-m-d')) {
+        echo json_encode(['success' => false, 'error' => 'Future dates are not allowed.']);
+        return;
+    }
+
+    // Fetch all active partners
+    $stmt = $con->prepare(
+        "SELECT name, access FROM svmobigamesreport.login_username ORDER BY name ASC"
+    );
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'error' => 'DB error.']);
+        return;
+    }
+    $stmt->execute();
+    $partners_res = $stmt->get_result();
+    $partners = [];
+    while ($row = $partners_res->fetch_assoc()) {
+        $access = json_decode($row['access'] ?? '{}', true);
+        if (($access['active'] ?? '') !== '1') continue;
+        if (empty($access['for']))              continue;
+        $partners[] = ['name' => $row['name'], 'property_id' => $access['for']];
+    }
+    $stmt->close();
+
+    $result = [];
+
+    foreach ($partners as $p) {
+        $pid = $p['property_id'];
+
+        // Get revenueshare
+        $revenueshare = 1.0;
+        $s2 = $con->prepare("SELECT revenueshare FROM svmobigamesreport.offers WHERE offerid = ? LIMIT 1");
+        if ($s2) {
+            $s2->bind_param('s', $pid);
+            $s2->execute();
+            $r2 = $s2->get_result()->fetch_assoc();
+            $s2->close();
+            if ($r2) $revenueshare = (float)$r2['revenueshare'];
+        }
+
+        // Per-day rows from stored report table
+        $s3 = $con->prepare(
+            "SELECT reportdate, totalrevenue, impressions, ecpm, clicks
+             FROM svmobigamesreport.report
+             WHERE offerid = ? AND reportdate BETWEEN ? AND ?
+             ORDER BY reportdate ASC"
+        );
+        if (!$s3) continue;
+        $s3->bind_param('sss', $pid, $start_date, $end_date);
+        $s3->execute();
+        $res3 = $s3->get_result();
+        $rows = [];
+        while ($r3 = $res3->fetch_assoc()) {
+            $total_rev = round((float)$r3['totalrevenue'], 2);
+            $rows[] = [
+                'date'        => date('d-m-Y', strtotime($r3['reportdate'])),
+                'total_rev'   => $total_rev,
+                'your_rev'    => round($total_rev * $revenueshare, 2),
+                'impressions' => (int)$r3['impressions'],
+                'ecpm'        => round((float)$r3['ecpm'], 2),
+                'clicks'      => (int)$r3['clicks'],
+            ];
+        }
+        $s3->close();
+
+        if (empty($rows)) continue; // skip partners with no data in range
+
+        $result[] = ['name' => $p['name'], 'rows' => $rows];
+    }
+
+    echo json_encode(['success' => true, 'partners' => $result]);
 }
