@@ -293,17 +293,19 @@ function trRender(r) {
         return isCr ? parseFloat(v).toFixed(2) + '%' : parseInt(v).toLocaleString();
     }
 
-    var TH  = 'style="background:#4a5568;color:#fff;text-align:center;white-space:nowrap;padding:8px 6px;font-size:12px;"';
-    var TDC = 'style="text-align:center;white-space:nowrap;padding:5px 6px;font-size:12px;"';
-    var TDB = 'style="text-align:center;white-space:nowrap;padding:5px 6px;font-size:12px;font-weight:600;"';
-    var TF  = 'style="background:#edf2f7;font-weight:700;text-align:center;white-space:nowrap;padding:5px 6px;font-size:12px;"';
+    var THd  = 'style="background:#4a5568;color:#fff;text-align:center;white-space:nowrap;padding:7px 4px;font-size:12px;width:88px;min-width:88px;"';
+    var THh  = 'style="background:#4a5568;color:#fff;text-align:center;white-space:nowrap;padding:7px 2px;font-size:12px;width:36px;min-width:36px;"';
+    var THt  = 'style="background:#4a5568;color:#fff;text-align:center;white-space:nowrap;padding:7px 4px;font-size:12px;width:58px;min-width:58px;"';
+    var TDC  = 'style="text-align:center;white-space:nowrap;padding:5px 2px;font-size:12px;"';
+    var TDB  = 'style="text-align:center;white-space:nowrap;padding:5px 4px;font-size:12px;font-weight:600;"';
+    var TF   = 'style="background:#edf2f7;font-weight:700;text-align:center;white-space:nowrap;padding:5px 2px;font-size:12px;"';
 
     // Header row — Date + each hour + Total
-    var thead = '<tr><th ' + TH + ' width="90">Date</th>';
+    var thead = '<tr><th ' + THd + '>Date</th>';
     $.each(hours, function (i, hr) {
-        thead += '<th ' + TH + '>' + hr + '</th>';
+        thead += '<th ' + THh + '>' + hr + '</th>';
     });
-    thead += '<th ' + TH + ' width="70">Total</th></tr>';
+    thead += '<th ' + THt + '>Total</th></tr>';
 
     // Body rows
     var tbody = '';
@@ -332,7 +334,7 @@ function trRender(r) {
     });
     tfoot += '<td ' + TF + '>' + (isCr ? '' : grandTotal.toLocaleString()) + '</td></tr>';
 
-    var html = '<table id="tr-tbl" class="table table-striped table-bordered" style="font-size:12px;width:100%;">'
+    var html = '<table id="tr-tbl" class="table table-striped table-bordered" style="font-size:12px;table-layout:fixed;">'
              + '<thead>' + thead + '</thead>'
              + '<tbody>' + tbody + '</tbody>'
              + '<tfoot>' + tfoot + '</tfoot></table>';
