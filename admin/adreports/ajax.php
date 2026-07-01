@@ -732,7 +732,7 @@ function perform_sql_publisher(string $display, string $logdb, string $commondb,
                     AND action='act' AND HOUR(ad_resp_datetime) <= {$hour} {$condition}
                 GROUP BY dt, advname
             ) a ON c.dt=a.dt AND c.advname=a.advname
-            ORDER BY c.advname, c.dt";
+            ORDER BY c.dt, c.advname";
 
         case 'cb':
             return "SELECT DATE(ad_resp_datetime) dt, COALESCE(advertiser_name,'OTHER') advname,
@@ -799,7 +799,7 @@ function perform_sql_advertiser(string $display, string $logdb, string $startDT,
                     AND camp_action='act' AND HOUR(camp_resp_datetime) <= {$hour} {$condition}
                 GROUP BY dt, advname
             ) a ON c.dt=a.dt AND c.advname=a.advname
-            ORDER BY c.advname, c.dt";
+            ORDER BY c.dt, c.advname";
 
         case 'cb':
             return "SELECT DATE(camp_resp_datetime) dt, COALESCE(campaign_title,'OTHER') advname,

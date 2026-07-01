@@ -348,10 +348,11 @@ function prfRender(r) {
                     doc.styles.tableBodyEven.fontSize = 8;
                     doc.content.forEach(function (node) {
                         if (node.table) {
-                            var usable = 812;
-                            var nameW  = Math.max(40, Math.floor((usable - 90 - 65) / colCount));
-                            var widths = ['90'];
-                            for (var i = 1; i < colCount - 1; i++) widths.push(nameW + '');
+                            var usable   = 812;
+                            var nameCols = Math.max(1, colCount - 2); // exclude Date + Total
+                            var nameW    = Math.max(40, Math.floor((usable - 90 - 65) / nameCols));
+                            var widths   = ['90'];
+                            for (var i = 0; i < nameCols; i++) widths.push(nameW + '');
                             widths.push('65');
                             node.table.widths = widths;
                         }

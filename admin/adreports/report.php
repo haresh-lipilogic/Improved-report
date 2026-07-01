@@ -310,11 +310,12 @@ function rptRender(r) {
               + '</tr>';
     });
 
-    // Totals row
+    // Totals row — totAct = sum(act) = sum(spo) + sum(sameday)
+    var totAct  = tot.spo + tot.sameday;
     var tChPct  = tot.sameday ? ((tot.sdc  / tot.sameday) * 100).toFixed(2) : '0.00';
-    var tCr     = tot.clicks  ? ((tot.spo  / tot.clicks)  * 100).toFixed(2) + '%' : '0.00%';
+    var tCr     = tot.clicks  ? ((totAct   / tot.clicks)  * 100).toFixed(2) + '%' : '0.00%';
     var tCbCr   = tot.clicks  ? ((tot.cbr  / tot.clicks)  * 100).toFixed(2) + '%' : '0.00%';
-    var tCbPct  = tot.spo     ? ((tot.cbr  / tot.spo)     * 100).toFixed(2) + '%' : '0.00%';
+    var tCbPct  = totAct      ? ((tot.cbr  / totAct)      * 100).toFixed(2) + '%' : '0.00%';
     var tChBadge= '<span style="color:#fff;font-weight:700;background:' + (parseFloat(tChPct) > 15 ? '#e53e3e' : '#38a169') + ';padding:2px 7px;border-radius:3px;">' + tChPct + '%</span>';
     var TF = 'style="background:#edf2f7;font-weight:700;text-align:center;white-space:nowrap;padding:6px 8px;"';
 
