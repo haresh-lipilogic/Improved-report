@@ -370,21 +370,24 @@ function trRender(r) {
                 className : 'btn btn-default',
                 title     : 'Trend Report | SVMobi',
                 customize : function (doc) {
-                    doc.pageSize    = { width: 841.89, height: 595.28 }; // A4 landscape
-                    doc.pageMargins = [10, 25, 10, 10];
+                    doc.pageSize        = 'A4';
+                    doc.pageOrientation = 'landscape';
+                    doc.pageMargins     = [10, 25, 10, 10];
                     doc.defaultStyle.fontSize         = 7;
                     doc.styles.tableHeader.fontSize   = 7;
                     doc.styles.tableBodyOdd.fontSize  = 7;
                     doc.styles.tableBodyEven.fontSize = 7;
                     doc.content.forEach(function (node) {
-                        if (node.table) {
-                            var usable   = 822;
-                            var dateW    = 70;
-                            var totalW   = 45;
-                            var hrW      = Math.max(28, Math.floor((usable - dateW - totalW) / Math.max(1, hours.length)));
-                            var widths   = [dateW + ''];
-                            for (var i = 0; i < hours.length; i++) widths.push(hrW + '');
-                            widths.push(totalW + '');
+                        if (node.table && node.table.body && node.table.body.length) {
+                            var len    = node.table.body[0].length; // actual col count
+                            var nHours = Math.max(1, len - 2);      // exclude Date + Total
+                            var usable = 822;                        // A4 landscape - margins
+                            var dateW  = 65;
+                            var totW   = 42;
+                            var hrW    = Math.floor((usable - dateW - totW) / nHours);
+                            var widths = [dateW];
+                            for (var i = 0; i < nHours; i++) widths.push(hrW);
+                            widths.push(totW);
                             node.table.widths = widths;
                         }
                     });
