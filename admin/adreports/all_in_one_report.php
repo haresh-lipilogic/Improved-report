@@ -6,10 +6,15 @@ error_reporting(0);
 $pageTitle = 'All in One Report';
 $pageIcon  = 'fa-th';
 
-// Absolute base URL so assets in header/footer resolve correctly from this subdirectory
-$pageBase = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://'
-          . $_SERVER['HTTP_HOST']
-          . rtrim(dirname(dirname(str_replace($_SERVER['DOCUMENT_ROOT'], '', dirname(__FILE__)))), '/') . '/';
+// Absolute base URL so assets in header/footer resolve correctly from this subdirectory.
+// This file lives at admin/adreports/, so $pageBase must point one level up to admin/.
+// We normalise DOCUMENT_ROOT to forward slashes to work reliably on Windows/XAMPP.
+$_docRoot  = rtrim(str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']), '/');
+$_selfDir  = rtrim(str_replace('\\', '/', dirname(__FILE__)), '/');
+$_relative = str_replace($_docRoot, '', dirname($_selfDir)); // strip admin/adreports → /Improved-report/admin
+$pageBase  = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+           . '://' . $_SERVER['HTTP_HOST']
+           . rtrim(str_replace('\\', '/', $_relative), '/') . '/';
 
 // Admin includes (one level up)
 include('../includes/check_session.php');
@@ -358,13 +363,22 @@ if (isset($_POST['submit'])) {
         <tfoot>
             <tr style="background:#edf2f7;font-weight:700;text-align:center;">
                 <td style="text-align:left;"><strong>Total</strong></td>
-                <?php foreach ($colNames as $i => $name): ?>
-                    <?php if ($i === 0) continue; ?>
-                    <?php if (substr($name, -4) === '_amt'): ?>
-                        <td style="white-space:nowrap;">$<?= number_format($check2[$i] ?? 0, 2) ?> ||</td>
+                <?php foreach ($colNames as $i => $name):
+                    // Skip the name column (already rendered above) and _amt columns
+                    // (_amt is always the column just before its paired count column)
+                    if ($i === 0) continue;
+                    if (substr($name, -4) === '_amt') continue;
+                    // For count columns, look back one position for the paired _amt column
+                    $amtName = $colNames[$i - 1] ?? '';
+                    $hasAmt  = ($amtName !== '' && substr($amtName, -4) === '_amt');
+                ?>
+                    <td style="text-align:center;white-space:nowrap;">
+                    <?php if ($hasAmt): ?>
+                        $<?= number_format($check2[$i - 1] ?? 0, 2) ?> || <?= number_format($check1[$i] ?? 0) ?>
                     <?php else: ?>
-                        <td><?= number_format($check1[$i] ?? 0) ?></td>
+                        <?= number_format($check1[$i] ?? 0) ?>
                     <?php endif; ?>
+                    </td>
                 <?php endforeach; ?>
                 <td style="white-space:nowrap;">$<?= number_format($grandTotal1, 2) ?> || <?= $grandTotal2 ?></td>
             </tr>
@@ -445,8 +459,8 @@ if (isset($_POST['submit'])) {
         </thead>
         <tbody>
         <?php foreach ($allRows as $r):
-            $vals    = array_map(fn($k) => (int)$r[$k],       $keys);
-            $amts    = array_map(fn($v) => (float)$r[$v],     array_values($amtKeys));
+            $vals    = array_map(function($k) use ($r) { return (int)$r[$k]; },   $keys);
+            $amts    = array_map(function($v) use ($r) { return (float)$r[$v]; }, array_values($amtKeys));
             $rowTot  = array_sum($vals);
             $rowAmt  = array_sum($amts);
             foreach ($keys as $j => $k) { $totals[$k] += $vals[$j]; }
@@ -475,8 +489,8 @@ if (isset($_POST['submit'])) {
                     </td>
                 <?php endforeach; ?>
                 <?php
-                    $gt  = array_sum(array_map(fn($k) => $totals[$k], $keys));
-                    $gta = array_sum(array_map(fn($k) => $totals[$k], array_keys($amtKeys)));
+                    $gt  = array_sum(array_map(function($k) use ($totals) { return $totals[$k]; }, $keys));
+                    $gta = array_sum(array_map(function($k) use ($totals) { return $totals[$k]; }, array_keys($amtKeys)));
                 ?>
                 <td style="white-space:nowrap;"><?= $gt ?> || $<?= number_format($gta, 2) ?></td>
             </tr>
