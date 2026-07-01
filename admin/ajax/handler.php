@@ -3085,14 +3085,15 @@ function action_callback_report_load(mysqli $con): void
              WHERE mainreport.date >= ? AND mainreport.date <= ?
                AND mainreport.product = ?";
 
-    $base_tail = " AND cbsent > 0
-               AND operatorcost.product = ?
+    // $base_tail = " AND cbsent > 0
+     $base_tail = "AND operatorcost.product = ?
              GROUP BY mainreport.product, mainreport.operator, advname, operatorcost_usd
              ORDER BY mainreport.product ASC, mainreport.operator ASC";
 
     // 4 branches: operator (all/specific) × advertiser (all/specific)
     if ($operator === 'all' && $advertiser === 'all') {
-        $stmt = $con->prepare($base_select . " AND advertiser > 0" . $base_tail);
+        // $stmt = $con->prepare($base_select . " AND advertiser > 0" . $base_tail);
+        $stmt = $con->prepare($base_select . " " . $base_tail);
         $stmt->bind_param('ssss', $start_date, $end_date, $product, $product);
 
     } elseif ($operator === 'all' && $advertiser !== 'all') {
@@ -3100,7 +3101,8 @@ function action_callback_report_load(mysqli $con): void
         $stmt->bind_param('sssss', $start_date, $end_date, $product, $advertiser, $product);
 
     } elseif ($operator !== 'all' && $advertiser === 'all') {
-        $stmt = $con->prepare($base_select . " AND mainreport.operator = ? AND advertiser > 0" . $base_tail);
+        // $stmt = $con->prepare($base_select . " AND mainreport.operator = ? AND advertiser > 0" . $base_tail);
+        $stmt = $con->prepare($base_select . " AND mainreport.operator = ? " . $base_tail);
         $stmt->bind_param('sssss', $start_date, $end_date, $product, $operator, $product);
 
     } else {
@@ -3207,7 +3209,7 @@ function action_callback_report_operators(mysqli $con): void
          LEFT JOIN {$report}.operatorcost ON mainreport.operator = operatorcost.operator
          WHERE mainreport.date >= ? AND mainreport.date <= ?
            AND mainreport.product = ?
-           AND advertiser > 0 AND cbsent > 0
+        --    AND advertiser > 0 AND cbsent > 0
            AND operatorcost.product = ?
          ORDER BY mainreport.operator ASC"
     );
